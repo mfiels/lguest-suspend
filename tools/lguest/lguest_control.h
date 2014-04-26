@@ -14,9 +14,10 @@ typedef enum {
   LGCTRL_RESUME
 } lgctrl_t;
 
+void send_signal_to_kernel(lgctrl_t current_signal);
+
 static int lguest_control_fd;
 static lgctrl_t lguest_control_signal;
-static pthread_mutex_t lguest_control_lock;
 
 static int uds_open(char *path) {
   struct sockaddr_un address;
@@ -102,9 +103,9 @@ static void *lguest_control_listen() {
     }
 
     if (strcmp("suspend", buff) == 0) {
-      lguest_set_control_signal(LGCTRL_SUSPEND);
+      send_signal_to_kernel(LGCTRL_SUSPEND);
     } else if (strcmp("resume", buff) == 0) {
-      lguest_set_control_signal(LGCTRL_RESUME);
+      send_signal_to_kernel(LGCTRL_RESUME);
     }
   }
 
@@ -117,20 +118,5 @@ static void lguest_control_init() {
   lguest_control_signal = LGCTRL_NONE;
   lguest_control_fd = uds_open(LGUEST_CONTROL_FILE);
 
-  pthread_mutex_init(&lguest_control_lock, NULL);
   pthread_create(&listen_thread, NULL, lguest_control_listen, NULL);
-}
-
-static lgctrl_t lguest_get_control_signal() {
-  pthread_mutex_lock(&lguest_control_lock);
-  lgctrl_t current_signal = lguest_control_signal;
-  lguest_control_signal = LGCTRL_NONE;
-  pthread_mutex_unlock(&lguest_control_lock);
-  return current_signal;
-}
-
-static void lguest_set_control_signal(lgctrl_t current_signal) {
-  pthread_mutex_lock(&lguest_control_lock);
-  lguest_control_signal = current_signal;
-  pthread_mutex_unlock(&lguest_control_lock);
 }
