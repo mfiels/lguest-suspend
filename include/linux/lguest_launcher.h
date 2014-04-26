@@ -63,6 +63,8 @@ enum lguest_req
 	LHREQ_IRQ, /* + irq */
 	LHREQ_BREAK, /* No longer used */
 	LHREQ_EVENTFD, /* + address, fd. */
+	LHREQ_SUSPEND,
+	LHREQ_RESUME,
 };
 
 /*

@@ -268,13 +268,13 @@ int run_guest(struct lg_cpu *cpu, unsigned long __user *user)
 		/**
 		 * If the guest is suspended skip.
 		 */
-		printk("Checking for suspend\n");
+		// printk("Checking for suspend\n");
 		if(cpu->suspended) {
 			cpu->was_suspended = 1;
 			set_current_state(TASK_INTERRUPTIBLE);
 			cond_resched();
 			// schedule();
-			printk("Suspended\n");
+			// printk("Suspended\n");
 			continue;
 		} else if(cpu->was_suspended) {
 			cpu->was_suspended = 0;

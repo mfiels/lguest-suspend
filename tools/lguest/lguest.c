@@ -197,11 +197,27 @@ static struct termios orig_term;
 #define le32_to_cpu(v32) (v32)
 #define le64_to_cpu(v64) (v64)
 
-lgctrl_t pending_signal = LGCTRL_NONE;
-
 void send_signal_to_kernel(lgctrl_t current_signal) 
 {
-	pending_signal = current_signal;
+	unsigned long signal_type = 0;
+
+	switch (current_signal) {
+		case LGCTRL_SUSPEND:
+			signal_type = LHREQ_SUSPEND;
+			break;
+		case LGCTRL_RESUME:
+			signal_type = LHREQ_RESUME;
+			break;
+		default:
+			break;
+	}
+
+	if (signal_type == 0) {
+		return;
+	}
+
+	unsigned long buf[] = { signal_type };
+	write(lguest_fd, buf, sizeof(buf));
 }
 
 /* Is this iovec empty? */

@@ -440,6 +440,14 @@ static ssize_t write(struct file *file, const char __user *in,
 		return user_send_irq(cpu, input);
 	case LHREQ_EVENTFD:
 		return attach_eventfd(lg, input);
+	case LHREQ_SUSPEND:
+		printk("SUSPEND REQUEST\n");
+		cpu->suspended = 1;
+		return 0;
+	case LHREQ_RESUME:
+		printk("RESUME REQUEST\n");
+		cpu->suspended = 0;
+		return 0;
 	default:
 		return -EINVAL;
 	}
