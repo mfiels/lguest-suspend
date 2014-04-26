@@ -11,7 +11,8 @@
 typedef enum {
   LGCTRL_NONE,
   LGCTRL_SUSPEND,
-  LGCTRL_RESUME
+  LGCTRL_RESUME,
+  LGCTRL_SNAPSHOT
 } lgctrl_t;
 
 void send_signal_to_kernel(lgctrl_t current_signal);
@@ -106,6 +107,8 @@ static void *lguest_control_listen() {
       send_signal_to_kernel(LGCTRL_SUSPEND);
     } else if (strcmp("resume", buff) == 0) {
       send_signal_to_kernel(LGCTRL_RESUME);
+    } else if (strcmp("snapshot", buff) == 0) {
+      send_signal_to_kernel(LGCTRL_SNAPSHOT);
     }
   }
 

@@ -65,6 +65,7 @@ enum lguest_req
 	LHREQ_EVENTFD, /* + address, fd. */
 	LHREQ_SUSPEND,
 	LHREQ_RESUME,
+	LHREQ_SNAPSHOT,
 };
 
 /*

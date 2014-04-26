@@ -208,6 +208,9 @@ void send_signal_to_kernel(lgctrl_t current_signal)
 		case LGCTRL_RESUME:
 			signal_type = LHREQ_RESUME;
 			break;
+		case LGCTRL_SNAPSHOT:
+			signal_type = LHREQ_SNAPSHOT;
+			break;
 		default:
 			break;
 	}
