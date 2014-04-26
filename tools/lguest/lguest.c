@@ -42,6 +42,8 @@
 #include <pwd.h>
 #include <grp.h>
 
+#include "lguest_control.h"
+
 /*L:110
  * We can ignore the 43 include files we need for this program, but I do want
  * to draw attention to the use of kernel-style types.
@@ -1960,6 +1962,9 @@ int main(int argc, char *argv[])
 		usage();
 
 	verbose("Guest base is at %p\n", guest_base);
+
+	/* Initialize the unix domain control socket */
+	lguest_control_init();
 
 	/* We always have a console device */
 	setup_console();
