@@ -264,6 +264,19 @@ int run_guest(struct lg_cpu *cpu, unsigned long __user *user)
 		if (cpu->lg->dead)
 			break;
 
+		/**
+		 * If the guest is suspended skip.
+		 */
+		if(cpu->suspended) {
+			cpu->was_suspended = 1;
+			set_current_state(TASK_INTERRUPTIBLE);
+			schedule();
+			continue;
+		} else if(cpu->was_suspended) {
+			cpu->was_suspended = 0;
+			set_current_state(TASK_RUNNING);
+		}
+
 		/*
 		 * If the Guest asked to be stopped, we sleep.  The Guest's
 		 * clock timer will wake us.
@@ -276,7 +289,7 @@ int run_guest(struct lg_cpu *cpu, unsigned long __user *user)
 			 */
 			if (interrupt_pending(cpu, &more) < LGUEST_IRQS)
 				set_current_state(TASK_RUNNING);
-			else
+			else 
 				schedule();
 			continue;
 		}

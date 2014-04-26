@@ -76,6 +76,10 @@ struct lg_cpu {
 	DECLARE_BITMAP(irqs_pending, LGUEST_IRQS);
 
 	struct lg_cpu_arch arch;
+
+	/* Was the guest suspended */
+	int suspended;
+	int was_suspended;
 };
 
 struct lg_eventfd {
