@@ -1819,6 +1819,18 @@ static void __attribute__((noreturn)) run_guest(void)
 		unsigned long notify_addr;
 		int readval;
 
+		lgctrl_t control_signal = lguest_get_control_signal();
+		switch (control_signal) {
+			case LGCTRL_SUSPEND:
+				printf("LGUEST SUSPEND SIGNAL RECEIVED\n");
+				break;
+			case LGCTRL_RESUME:
+				printf("LGUEST RESUME SIGNAL RECEIVED\n");
+				break;
+			default:
+				break;
+		}
+
 		/* We read from the /dev/lguest device to run the Guest. */
 		readval = pread(lguest_fd, &notify_addr,
 				sizeof(notify_addr), cpu_id);
