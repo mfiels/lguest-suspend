@@ -204,6 +204,7 @@ static ssize_t read(struct file *file, char __user *user, size_t size,loff_t*o)
 	struct lg_cpu *cpu;
 	unsigned int cpu_id = *o;
 
+
 	/* You must write LHREQ_INITIALIZE first! */
 	if (!lg)
 		return -EINVAL;
@@ -239,6 +240,11 @@ static ssize_t read(struct file *file, char __user *user, size_t size,loff_t*o)
 	 */
 	if (cpu->pending_notify)
 		cpu->pending_notify = 0;
+
+	/* Initialize the suspend flags */
+	printk("Setting suspend flags\n");
+	cpu->suspended = 0;
+	cpu->was_suspended = 0;
 
 	/* Run the Guest until something interesting happens. */
 	return run_guest(cpu, (unsigned long __user *)user);

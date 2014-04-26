@@ -13,6 +13,7 @@
 #include <linux/freezer.h>
 #include <linux/highmem.h>
 #include <linux/slab.h>
+#include <linux/sched.h>
 #include <asm/paravirt.h>
 #include <asm/pgtable.h>
 #include <asm/uaccess.h>
@@ -264,6 +265,22 @@ int run_guest(struct lg_cpu *cpu, unsigned long __user *user)
 		if (cpu->lg->dead)
 			break;
 
+		/**
+		 * If the guest is suspended skip.
+		 */
+		printk("Checking for suspend\n");
+		if(cpu->suspended) {
+			cpu->was_suspended = 1;
+			set_current_state(TASK_INTERRUPTIBLE);
+			cond_resched();
+			// schedule();
+			printk("Suspended\n");
+			continue;
+		} else if(cpu->was_suspended) {
+			cpu->was_suspended = 0;
+			// set_current_state(TASK_RUNNING);
+		}
+
 		/*
 		 * If the Guest asked to be stopped, we sleep.  The Guest's
 		 * clock timer will wake us.
@@ -276,7 +293,7 @@ int run_guest(struct lg_cpu *cpu, unsigned long __user *user)
 			 */
 			if (interrupt_pending(cpu, &more) < LGUEST_IRQS)
 				set_current_state(TASK_RUNNING);
-			else
+			else 
 				schedule();
 			continue;
 		}
@@ -317,6 +334,7 @@ static int __init init(void)
 {
 	int err;
 
+	printk("Do I work?\n");
 	/* Lguest can't run under Xen, VMI or itself.  It does Tricky Stuff. */
 	if (get_kernel_rpl() != 0) {
 		printk("lguest is afraid of being a guest\n");
