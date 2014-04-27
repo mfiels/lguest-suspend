@@ -79,7 +79,6 @@ struct lg_cpu {
 
 	/* Was the guest suspended */
 	int suspended;
-	int was_suspended;
 };
 
 struct lg_eventfd {
@@ -225,6 +224,8 @@ void lguest_device_remove(void);
 /* hypercalls.c: */
 void do_hypercalls(struct lg_cpu *cpu);
 void write_timestamp(struct lg_cpu *cpu);
+
+void write_snapshot(struct lg_cpu *cpu);
 
 /*L:035
  * Let's step aside for the moment, to study one important routine that's used

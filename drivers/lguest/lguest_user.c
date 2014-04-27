@@ -242,9 +242,7 @@ static ssize_t read(struct file *file, char __user *user, size_t size,loff_t*o)
 		cpu->pending_notify = 0;
 
 	/* Initialize the suspend flags */
-	printk("Setting suspend flags\n");
 	cpu->suspended = 0;
-	cpu->was_suspended = 0;
 
 	/* Run the Guest until something interesting happens. */
 	return run_guest(cpu, (unsigned long __user *)user);
@@ -452,6 +450,11 @@ static ssize_t write(struct file *file, const char __user *in,
 		printk("RESUME REQUEST\n");
 		cpu->suspended = 0;
 		return 0;
+	case LHREQ_SNAPSHOT:
+		printk("SNAPSHOT REQUEST\n");
+		cpu->suspended = 1;
+		write_snapshot(cpu);
+		// TODO: Write out guest state to files
 	default:
 		return -EINVAL;
 	}

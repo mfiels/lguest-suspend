@@ -14,19 +14,113 @@
 #include <linux/highmem.h>
 #include <linux/slab.h>
 #include <linux/sched.h>
+#include <linux/buffer_head.h>
+#include <linux/fs.h>
 #include <asm/paravirt.h>
 #include <asm/pgtable.h>
 #include <asm/uaccess.h>
 #include <asm/poll.h>
 #include <asm/asm-offsets.h>
+#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include "lg.h"
 
 unsigned long switcher_addr;
 struct page **lg_switcher_pages;
 static struct vm_struct *switcher_vma;
+static char page_buffer[PAGE_SIZE];
 
 /* This One Big lock protects all inter-guest data structures. */
 DEFINE_MUTEX(lguest_lock);
+
+// File ops thanks to http://stackoverflow.com/questions/1184274/how-to-read-write-files-within-a-linux-kernel-module
+struct file* file_open(const char* path, int flags, int rights) {
+    struct file* filp = NULL;
+    mm_segment_t oldfs;
+    int err = 0;
+
+    oldfs = get_fs();
+    set_fs(get_ds());
+    filp = filp_open(path, flags, rights);
+    set_fs(oldfs);
+    if(IS_ERR(filp)) {
+        err = PTR_ERR(filp);
+        return NULL;
+    }
+    return filp;
+}
+
+// File ops thanks to http://stackoverflow.com/questions/1184274/how-to-read-write-files-within-a-linux-kernel-module
+void file_close(struct file* file) {
+    filp_close(file, NULL);
+}
+
+// File ops thanks to http://stackoverflow.com/questions/1184274/how-to-read-write-files-within-a-linux-kernel-module
+int file_read(struct file* file, unsigned long long offset, unsigned char* data, unsigned int size) {
+    mm_segment_t oldfs;
+    int ret;
+
+    oldfs = get_fs();
+    set_fs(get_ds());
+
+    ret = vfs_read(file, data, size, &offset);
+
+    set_fs(oldfs);
+    return ret;
+}
+
+// File ops thanks to http://stackoverflow.com/questions/1184274/how-to-read-write-files-within-a-linux-kernel-module
+int file_write(struct file* file, unsigned long long offset, unsigned char* data, unsigned int size) {
+    mm_segment_t oldfs;
+    int ret;
+
+    oldfs = get_fs();
+    set_fs(get_ds());
+
+    ret = vfs_write(file, data, size, &offset);
+
+    set_fs(oldfs);
+    return ret;
+}
+
+void dump_cpu_regs(struct lg_cpu *cpu) {
+	struct lguest_regs *regs = cpu->regs;
+
+	printk("eax: %ld, ebx: %ld, ecx: %ld, edx: %ld\n", regs->eax, regs->ebx, regs->ecx, regs->edx);
+	printk("esi: %ld, edi: %ld, ebp: %ld\n", regs->esi, regs->edi, regs->ebp);
+	printk("gs: %ld, fs: %ld, ds: %ld, es: %ld\n", regs->gs, regs->fs, regs->ds, regs->es);
+	printk("trapnum: %ld, errcode: %ld\n", regs->trapnum, regs->errcode);
+	printk("eip: %ld, cs: %ld, eflags: %ld, esp: %ld, ss: %ld\n", regs->eip, regs->cs, regs->eflags, regs->esp, regs->ss);
+}
+
+void write_snapshot(struct lg_cpu *cpu) {
+	int i;
+	struct file *memory;
+	struct file *regs;
+	
+	printk("starting snapshot...\n");
+
+	// This might be useful later, keeping it around
+	// printk("=== DUMPING REGISTERS SNAPSHOT ===\n");
+	// dump_cpu_regs(cpu);
+
+	// Write guest memory
+	memory = file_open("/tmp/lgmemory", O_RDWR | O_CREAT | O_TRUNC, 0644);
+	for (i = 0; i < cpu->lg->pfn_limit; i++) {
+		__lgread(cpu, page_buffer, i * PAGE_SIZE, PAGE_SIZE);
+		file_write(memory, i * PAGE_SIZE, page_buffer, PAGE_SIZE);
+	}
+	file_close(memory);
+
+	// Write guest cpu regs
+	regs = file_open("/tmp/lgregs", O_RDWR | O_CREAT | O_TRUNC, 0644);
+	file_write(regs, 0, (void *) cpu->regs, sizeof(struct lguest_regs));
+	file_close(regs);
+
+	// TODO: Write other state out to files here...
+
+	printk("snapshot done\n");
+}
 
 /*H:010
  * We need to set up the Switcher at a high virtual address.  Remember the
@@ -177,7 +271,7 @@ static void unmap_switcher(void)
 bool lguest_address_ok(const struct lguest *lg,
 		       unsigned long addr, unsigned long len)
 {
-	return (addr+len) / PAGE_SIZE < lg->pfn_limit && (addr+len >= addr);
+	return (addr+len-1) / PAGE_SIZE < lg->pfn_limit && (addr+len >= addr);
 }
 
 /*
@@ -218,8 +312,11 @@ int run_guest(struct lg_cpu *cpu, unsigned long __user *user)
 		bool more;
 
 		/* First we run any hypercalls the Guest wants done. */
-		if (cpu->hcall)
+		if (cpu->hcall) {
+			// printk("=== DUMPING REGISTERS HYPERCALL ===\n");
+			// dump_cpu_regs(cpu);
 			do_hypercalls(cpu);
+		}
 
 		/*
 		 * It's possible the Guest did a NOTIFY hypercall to the
@@ -270,15 +367,11 @@ int run_guest(struct lg_cpu *cpu, unsigned long __user *user)
 		 */
 		// printk("Checking for suspend\n");
 		if(cpu->suspended) {
-			cpu->was_suspended = 1;
 			set_current_state(TASK_INTERRUPTIBLE);
 			cond_resched();
 			// schedule();
 			// printk("Suspended\n");
 			continue;
-		} else if(cpu->was_suspended) {
-			cpu->was_suspended = 0;
-			// set_current_state(TASK_RUNNING);
 		}
 
 		/*
