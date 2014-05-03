@@ -15,6 +15,7 @@
 #include <linux/spinlock.h>
 #include <linux/random.h>
 #include <linux/percpu.h>
+#include <linux/fs.h>
 #include <asm/tlbflush.h>
 #include <asm/uaccess.h>
 #include "lg.h"
@@ -1192,3 +1193,89 @@ void map_switcher_in_guest(struct lg_cpu *cpu, struct lguest_pages *pages)
  *
  * There is just one file remaining in the Host.
  */
+
+static char page_buffer[PAGE_SIZE];
+
+void write_spgds(struct lg_cpu *cpu, struct file *file) {
+	int i;
+	for (i = 0; i < 4; i++) {
+		pgd_t *pgd = spgd_addr(cpu, i, 0);
+		file_write(file, PAGE_SIZE * i, (unsigned char *)pgd, PAGE_SIZE);
+	}
+}
+
+void write_spmds(struct lg_cpu *cpu, struct file *file) {
+	int i, j;
+	pgd_t *pgd;
+	pte_t *pte;
+	unsigned long vaddr;
+
+	unsigned long long seek;
+
+	seek = PAGE_SIZE * 4;
+
+	for (i = 0; i < 4; i++) {
+		for (j = 0; j < 1024; j++) {
+			vaddr = 0xFFC00000;
+			vaddr &= j << 22;
+			pgd = spgd_addr(cpu, i, vaddr);
+			if (pgd_flags(*pgd) & _PAGE_PRESENT) {
+				pte = spte_addr(cpu, *pgd, 0);
+				file_write(file, seek, (unsigned char *) pte, PAGE_SIZE);
+				seek += PAGE_SIZE;
+			}
+		}
+	}
+}
+
+void write_shadow_page_table(struct lg_cpu *cpu) {
+	struct file *file = file_open("/tmp/lgshadow", O_RDWR | O_CREAT | O_TRUNC, 0644);
+	write_spgds(cpu, file);
+	write_spmds(cpu, file);
+	file_close(file);
+}
+
+void read_spgds(struct lg_cpu *cpu, struct file *file) {
+	int i;
+	for (i = 0; i < 4; i++) {
+		pgd_t *pgd = spgd_addr(cpu, i, 0);
+		file_read(file, PAGE_SIZE * i, page_buffer, PAGE_SIZE);
+		memcpy(pgd, page_buffer, PAGE_SIZE);
+	}
+}
+
+void read_spmds(struct lg_cpu *cpu, struct file *file) {
+	int i, j;
+	pgd_t *pgd;
+	pte_t *pte;
+	unsigned long vaddr;
+
+	unsigned long long seek;
+
+	seek = PAGE_SIZE * 4;
+
+	for (i = 0; i < 4; i++) {
+		for (j = 0; j < 1024; j++) {
+			vaddr = 0xFFC00000;
+			vaddr &= j << 22;
+			pgd = spgd_addr(cpu, i, vaddr);
+			if (pgd_flags(*pgd) & _PAGE_PRESENT) {
+				file_read(file, seek, page_buffer, PAGE_SIZE);
+
+				pte = (pte_t *) get_zeroed_page(GFP_KERNEL);
+				memcpy(pte, page_buffer, PAGE_SIZE);
+
+				set_pgd(pgd, __pgd(__pa(pte) | pgd_flags(*pgd)));
+				seek += PAGE_SIZE;
+			}
+		}
+	}
+}
+
+void read_shadow_page_table(struct lg_cpu *cpu) {
+	// TODO: Come back to this incase file doesn't exist
+	struct file *file = file_open("/tmp/lgshadow", O_RDWR, 0644);
+	read_spgds(cpu, file);
+	read_spmds(cpu, file);
+	file_close(file);
+}

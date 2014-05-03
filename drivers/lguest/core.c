@@ -117,7 +117,11 @@ void write_snapshot(struct lg_cpu *cpu) {
 	file_write(regs, 0, (void *) cpu->regs, sizeof(struct lguest_regs));
 	file_close(regs);
 
-	// TODO: Write other state out to files here...
+	// Write shadow page tables
+	write_shadow_page_table(cpu);
+
+	// ERROR: Remove this when done testing shadow page table transplants
+	read_shadow_page_table(cpu);
 
 	printk("snapshot done\n");
 }
