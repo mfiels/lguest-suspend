@@ -123,6 +123,8 @@ void write_snapshot(struct lg_cpu *cpu) {
 	// ERROR: Remove this when done testing shadow page table transplants
 	read_shadow_page_table(cpu);
 
+	remap_physical_pages(cpu);
+
 	printk("snapshot done\n");
 }
 

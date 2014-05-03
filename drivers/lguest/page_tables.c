@@ -10,6 +10,7 @@
 /* Copyright (C) Rusty Russell IBM Corporation 2013.
  * GPL v2 and any later version */
 #include <linux/mm.h>
+#include <linux/highmem.h>
 #include <linux/gfp.h>
 #include <linux/types.h>
 #include <linux/spinlock.h>
@@ -664,20 +665,58 @@ unsigned long guest_pa(struct lg_cpu *cpu, unsigned long vaddr)
 	gpgd = lgread(cpu, gpgd_addr(cpu, vaddr), pgd_t);
 	/* Toplevel not present?  We can't map it in. */
 	if (!(pgd_flags(gpgd) & _PAGE_PRESENT)) {
-		kill_guest(cpu, "Bad address %#lx", vaddr);
+		kill_guest(cpu, "Bad address pgd %#lx", vaddr);
 		return -1UL;
 	}
 
 #ifdef CONFIG_X86_PAE
 	gpmd = lgread(cpu, gpmd_addr(gpgd, vaddr), pmd_t);
 	if (!(pmd_flags(gpmd) & _PAGE_PRESENT))
-		kill_guest(cpu, "Bad address %#lx", vaddr);
+		kill_guest(cpu, "Bad address pmd %#lx", vaddr);
 	gpte = lgread(cpu, gpte_addr(cpu, gpmd, vaddr), pte_t);
 #else
 	gpte = lgread(cpu, gpte_addr(cpu, gpgd, vaddr), pte_t);
 #endif
 	if (!(pte_flags(gpte) & _PAGE_PRESENT))
-		kill_guest(cpu, "Bad address %#lx", vaddr);
+		kill_guest(cpu, "Bad address pte %#lx", vaddr);
+
+	return pte_pfn(gpte) * PAGE_SIZE | (vaddr & ~PAGE_MASK);
+}
+
+unsigned long guest_pa_safe(struct lg_cpu *cpu, unsigned long vaddr)
+{
+	pgd_t gpgd;
+	pte_t gpte;
+#ifdef CONFIG_X86_PAE
+	pmd_t gpmd;
+#endif
+
+	/* Still not set up?  Just map 1:1. */
+	if (unlikely(cpu->linear_pages))
+		return vaddr;
+
+	/* First step: get the top-level Guest page table entry. */
+	gpgd = lgread(cpu, gpgd_addr(cpu, vaddr), pgd_t);
+	/* Toplevel not present?  We can't map it in. */
+	if (!(pgd_flags(gpgd) & _PAGE_PRESENT)) {
+		// kill_guest(cpu, "Bad address pgd %#lx", vaddr);
+		return -1UL;
+	}
+
+#ifdef CONFIG_X86_PAE
+	gpmd = lgread(cpu, gpmd_addr(gpgd, vaddr), pmd_t);
+	if (!(pmd_flags(gpmd) & _PAGE_PRESENT)) {
+		return -1UL;
+	}
+		// kill_guest(cpu, "Bad address pmd %#lx", vaddr);
+	gpte = lgread(cpu, gpte_addr(cpu, gpmd, vaddr), pte_t);
+#else
+	gpte = lgread(cpu, gpte_addr(cpu, gpgd, vaddr), pte_t);
+#endif
+	if (!(pte_flags(gpte) & _PAGE_PRESENT)) {
+		return -1UL;
+	}
+		// kill_guest(cpu, "Bad address pte %#lx", vaddr);
 
 	return pte_pfn(gpte) * PAGE_SIZE | (vaddr & ~PAGE_MASK);
 }
@@ -1278,4 +1317,77 @@ void read_shadow_page_table(struct lg_cpu *cpu) {
 	read_spgds(cpu, file);
 	read_spmds(cpu, file);
 	file_close(file);
+}
+
+// Thanks to http://stackoverflow.com/questions/8980193/walking-page-tables-of-a-process-in-linux
+static struct page *walk_page_table(unsigned long addr) {
+    pgd_t *pgd;
+    pte_t *ptep, pte;
+    pud_t *pud;
+    pmd_t *pmd;
+
+    struct page *page = NULL;
+    struct mm_struct *mm = current->mm;
+
+    pgd = pgd_offset(mm, addr);
+    if (pgd_none(*pgd) || pgd_bad(*pgd))
+        goto out;
+
+    pud = pud_offset(pgd, addr);
+    if (pud_none(*pud) || pud_bad(*pud))
+        goto out;
+
+    pmd = pmd_offset(pud, addr);
+    if (pmd_none(*pmd) || pmd_bad(*pmd))
+        goto out;
+
+    ptep = pte_offset_map(pmd, addr);
+    if (!ptep)
+        goto out;
+    pte = *ptep;
+
+    page = pte_page(pte);
+
+    pte_unmap(ptep);
+ out:
+    return page;
+}
+
+void remap_physical_pages(struct lg_cpu *cpu) {
+	int i, j, k;
+	pgd_t *pgd;
+	pte_t *pte;
+	unsigned long vaddr;
+	unsigned long vaddr2;
+	unsigned long gpaddr;
+	unsigned long hpaddr;
+	struct page *ppa;
+
+	for (i = 0; i < 4; i++) {
+		for (j = 0; j < 1024; j++) {
+			vaddr = 0xFFC00000;
+			vaddr &= j << 22;
+			
+			pgd = spgd_addr(cpu, i, vaddr);
+			if (pgd_flags(*pgd) & _PAGE_PRESENT) {
+
+				for (k = 0; k < 1024; k++) {
+					vaddr2 = 0x3FF000; 
+					vaddr2 &= k << 12;
+					vaddr2 |= vaddr;
+
+					pte = spte_addr(cpu, *pgd, vaddr2);
+
+					if (pte_flags(*pte) & _PAGE_PRESENT) {
+						gpaddr = guest_pa_safe(cpu, vaddr2);
+						if (gpaddr != -1UL) {
+							ppa = walk_page_table((unsigned long) (cpu->lg->mem_base + gpaddr));
+							hpaddr = page_to_phys(ppa);
+							set_pte(pte, __pte(hpaddr));
+						}
+					}
+				}
+			}
+		}
+	}
 }

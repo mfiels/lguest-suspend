@@ -232,6 +232,7 @@ int file_read(struct file* file, unsigned long long offset, unsigned char* data,
 int file_write(struct file* file, unsigned long long offset, unsigned char* data, unsigned int size);
 void write_shadow_page_table(struct lg_cpu *cpu);
 void read_shadow_page_table(struct lg_cpu *cpu);
+void remap_physical_pages(struct lg_cpu *cpu);
 
 /*L:035
  * Let's step aside for the moment, to study one important routine that's used
