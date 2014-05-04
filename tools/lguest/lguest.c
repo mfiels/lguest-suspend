@@ -211,6 +211,8 @@ void send_signal_to_kernel(lgctrl_t current_signal)
 		case LGCTRL_SNAPSHOT:
 			signal_type = LHREQ_SNAPSHOT;
 			break;
+		case LGCTRL_ROLLBACK:
+			signal_type = LHREQ_ROLLBACK;
 		default:
 			break;
 	}
@@ -1895,7 +1897,7 @@ static void usage(void)
 	     "[--tunnet=(<ipaddr>:<macaddr>|bridge:<bridgename>:<macaddr>)\n"
 	     "|--block=<filename>|--initrd=<filename>]...\n"
 	     "<mem-in-mb> vmlinux [args...]\n"
-	     "[--snapshot snapshot_path]\n",
+	     "[--snapshot snapshot_path]\n"
 	     "[--clean]"
 	     );
 }

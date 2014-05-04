@@ -459,6 +459,11 @@ static ssize_t write(struct file *file, const char __user *in,
 		cpu->suspended = 1;
 		write_snapshot(cpu);
 		// TODO: Write out guest state to files
+		return 0;
+	case LHREQ_ROLLBACK:
+		printk("ROLLBACK REQUEST\n");
+		// TODO: Implement Rollback
+		return 0;
 	default:
 		return -EINVAL;
 	}

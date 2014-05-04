@@ -66,6 +66,7 @@ enum lguest_req
 	LHREQ_SUSPEND,
 	LHREQ_RESUME,
 	LHREQ_SNAPSHOT,
+	LHREQ_ROLLBACK,
 };
 
 /*
