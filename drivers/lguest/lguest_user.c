@@ -306,48 +306,9 @@ static int lg_cpu_start(struct lg_cpu *cpu, unsigned id, unsigned long start_ip)
 	return 0;
 }
 
-/*L:020
- * The initialization write supplies 3 pointer sized (32 or 64 bit) values (in
- * addition to the LHREQ_INITIALIZE value).  These are:
- *
- * base: The start of the Guest-physical memory inside the Launcher memory.
- *
- * pfnlimit: The highest (Guest-physical) page number the Guest should be
- * allowed to access.  The Guest memory lives inside the Launcher, so it sets
- * this to ensure the Guest can only reach its own memory.
- *
- * start: The first instruction to execute ("eip" in x86-speak).
- */
-static int initialize(struct file *file, const unsigned long __user *input)
-{
-	/* "struct lguest" contains all we (the Host) know about a Guest. */
-	struct lguest *lg;
+static int initialize_clean(struct file *file, unsigned long *args) {
 	int err;
-	unsigned long args[5];
-	char snapshot_path[256] = {0};
-	bool clean;
-
-	/*
-	 * We grab the Big Lguest lock, which protects against multiple
-	 * simultaneous initializations.
-	 */
-	mutex_lock(&lguest_lock);
-	/* You can't initialize twice!  Close the device and start again... */
-	if (file->private_data) {
-		err = -EBUSY;
-		goto unlock;
-	}
-
-	if (copy_from_user(args, input, sizeof(args)) != 0) {
-		err = -EFAULT;
-		goto unlock;
-	}
-
-	copy_from_user(snapshot_path, (char*)args[3], sizeof(snapshot_path));
-	printk("snapshot_path: %s\n", snapshot_path);
-
-	copy_from_user(&clean, (bool*)args[4], sizeof(bool));
-	printk("clean load? %s\n", clean ? "TRUE" : "FALSE");
+	struct lguest *lg;
 
 	lg = kzalloc(sizeof(*lg), GFP_KERNEL);
 	if (!lg) {
@@ -394,6 +355,116 @@ free_eventfds:
 	kfree(lg->eventfds);
 free_lg:
 	kfree(lg);
+unlock:
+	mutex_unlock(&lguest_lock);
+	return err;
+}
+
+static int initialize_snapshot(struct file *file, unsigned long *args) {
+	int err;
+	struct lguest *lg;
+	struct lguest_regs regs;
+
+	lg = kzalloc(sizeof(*lg), GFP_KERNEL);
+	if (!lg) {
+		err = -ENOMEM;
+		goto unlock;
+	}
+
+	lg->eventfds = kmalloc(sizeof(*lg->eventfds), GFP_KERNEL);
+	if (!lg->eventfds) {
+		err = -ENOMEM;
+		goto free_lg;
+	}
+	lg->eventfds->num = 0;
+
+	/* Populate the easy fields of our "struct lguest" */
+	lg->mem_base = (void __user *)args[0];
+	lg->pfn_limit = args[1];
+
+	read_cpu_regs(&regs);
+
+	/* This is the first cpu (cpu 0) and it will start booting at args[2] */
+	err = lg_cpu_start(&lg->cpus[0], 0, regs.eip);
+	if (err)
+		goto free_eventfds;
+
+	read_guest_memory(&lg->cpus[0]);
+
+	*(lg->cpus[0].regs) = regs;
+
+	/*
+	 * Initialize the Guest's shadow page tables.  This allocates
+	 * memory, so can fail.
+	 */
+	init_guest_pagetable_snapshot(lg);
+	read_shadow_page_table(&lg->cpus[0]);
+
+	/* We keep our "struct lguest" in the file's private_data. */
+	file->private_data = lg;
+
+	mutex_unlock(&lguest_lock);
+
+	/* And because this is a write() call, we return the length used. */
+	return sizeof(args);
+
+free_eventfds:
+	kfree(lg->eventfds);
+free_lg:
+	kfree(lg);
+unlock:
+	mutex_unlock(&lguest_lock);
+	return err;
+}
+
+/*L:020
+ * The initialization write supplies 3 pointer sized (32 or 64 bit) values (in
+ * addition to the LHREQ_INITIALIZE value).  These are:
+ *
+ * base: The start of the Guest-physical memory inside the Launcher memory.
+ *
+ * pfnlimit: The highest (Guest-physical) page number the Guest should be
+ * allowed to access.  The Guest memory lives inside the Launcher, so it sets
+ * this to ensure the Guest can only reach its own memory.
+ *
+ * start: The first instruction to execute ("eip" in x86-speak).
+ */
+static int initialize(struct file *file, const unsigned long __user *input)
+{
+	/* "struct lguest" contains all we (the Host) know about a Guest. */
+	int err;
+	unsigned long args[5];
+	char snapshot_path[256] = {0};
+	bool clean;
+
+	/*
+	 * We grab the Big Lguest lock, which protects against multiple
+	 * simultaneous initializations.
+	 */
+	mutex_lock(&lguest_lock);
+	/* You can't initialize twice!  Close the device and start again... */
+	if (file->private_data) {
+		err = -EBUSY;
+		goto unlock;
+	}
+
+	if (copy_from_user(args, input, sizeof(args)) != 0) {
+		err = -EFAULT;
+		goto unlock;
+	}
+
+	copy_from_user(snapshot_path, (char*)args[3], sizeof(snapshot_path));
+	printk("snapshot_path: %s\n", snapshot_path);
+
+	copy_from_user(&clean, (bool*)args[4], sizeof(bool));
+	printk("clean load? %s\n", clean ? "TRUE" : "FALSE");
+
+	if (clean) {
+		return initialize_clean(file, args);
+	} else {
+		return initialize_snapshot(file, args);
+	}
+
 unlock:
 	mutex_unlock(&lguest_lock);
 	return err;

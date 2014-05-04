@@ -777,6 +777,18 @@ static unsigned int new_pgdir(struct lg_cpu *cpu,
 	return next;
 }
 
+static void init_all_pgdirs(struct lg_cpu *cpu, unsigned long gpgdir) {
+	int i;
+	for (i = 0; i < 4; i++) {
+		cpu->lg->pgdirs[i].pgdir =
+					(pgd_t *)get_zeroed_page(GFP_KERNEL);
+		cpu->lg->pgdirs[i].gpgdir = gpgdir;					
+		/* Release all the non-kernel mappings. */
+		flush_user_mappings(cpu->lg, i);
+		cpu->lg->pgdirs[i].last_host_cpu = -1;
+	}
+}
+
 /*H:501
  * We do need the Switcher code mapped at all times, so we allocate that
  * part of the Guest page table here.  We map the Switcher code immediately,
@@ -1087,6 +1099,21 @@ int init_guest_pagetable(struct lguest *lg)
 	return 0;
 }
 
+int init_guest_pagetable_snapshot(struct lguest *lg) {
+	struct lg_cpu *cpu = &lg->cpus[0];
+
+	/* lg (and lg->cpus[]) starts zeroed: this allocates a new pgdir */
+	init_all_pgdirs(cpu, 0);
+
+	/* Allocate the page tables for the Switcher. */
+	if (!allocate_switcher_mapping(cpu)) {
+		release_all_pagetables(lg);
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+
 /*H:508 When the Guest calls LHCALL_LGUEST_INIT we do more setup. */
 void page_table_guest_data_init(struct lg_cpu *cpu)
 {
@@ -1276,8 +1303,13 @@ void write_shadow_page_table(struct lg_cpu *cpu) {
 
 void read_spgds(struct lg_cpu *cpu, struct file *file) {
 	int i;
+	pgd_t *pgd;
 	for (i = 0; i < 4; i++) {
-		pgd_t *pgd = spgd_addr(cpu, i, 0);
+		printk("iteration %d %p %p %p %p %p\n", i, cpu, cpu->lg, &cpu->lg->pgdirs[0], &cpu->lg->pgdirs[0].pgdir, &cpu->lg->pgdirs[0].pgdir[0]);
+		//return &cpu->lg->pgdirs[i].pgdir[index];
+		pgd = spgd_addr(cpu, i, 0);
+		printk("pointer %p\n", pgd);
+		printk("file %p buffer %p\n", file, page_buffer);
 		file_read(file, PAGE_SIZE * i, page_buffer, PAGE_SIZE);
 		memcpy(pgd, page_buffer, PAGE_SIZE);
 	}
@@ -1317,6 +1349,8 @@ void read_shadow_page_table(struct lg_cpu *cpu) {
 	read_spgds(cpu, file);
 	read_spmds(cpu, file);
 	file_close(file);
+
+	remap_physical_pages(cpu);
 }
 
 // Thanks to http://stackoverflow.com/questions/8980193/walking-page-tables-of-a-process-in-linux

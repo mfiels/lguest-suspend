@@ -93,10 +93,10 @@ void dump_cpu_regs(struct lg_cpu *cpu) {
 	printk("eip: %ld, cs: %ld, eflags: %ld, esp: %ld, ss: %ld\n", regs->eip, regs->cs, regs->eflags, regs->esp, regs->ss);
 }
 
-static void read_cpu_regs(struct lg_cpu *cpu) {
+void read_cpu_regs(struct lguest_regs *out) {
 	struct file *regs;
 	regs = file_open("/tmp/lgregs", O_RDWR, 0644);
-	file_read(regs, 0, (void *) cpu->regs, sizeof(struct lguest_regs));
+	file_read(regs, 0, (void *) out, sizeof(struct lguest_regs));
 	file_close(regs);
 }
 
@@ -107,7 +107,7 @@ static void write_cpu_regs(struct lg_cpu *cpu) {
 	file_close(regs);
 }
 
-static void read_guest_memory(struct lg_cpu *cpu) {
+void read_guest_memory(struct lg_cpu *cpu) {
 	int i;
 	struct file *memory;
 	memory = file_open("/tmp/lgmemory", O_RDWR, 0644);
@@ -140,22 +140,11 @@ void write_snapshot(struct lg_cpu *cpu) {
 	// Write guest memory
 	write_guest_memory(cpu);
 
-	// ERROR: Remove this when done testing guest memory transplants
-	read_guest_memory(cpu);
-
 	// Write guest cpu regs
 	write_cpu_regs(cpu);
 
-	// ERROR: Remove this when done testing cpu regs transplants
-	read_cpu_regs(cpu);
-
 	// Write shadow page tables
 	write_shadow_page_table(cpu);
-
-	// ERROR: Remove this when done testing shadow page table transplants
-	read_shadow_page_table(cpu);
-
-	remap_physical_pages(cpu);
 
 	printk("snapshot done\n");
 }
