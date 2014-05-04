@@ -323,8 +323,9 @@ static int initialize(struct file *file, const unsigned long __user *input)
 	/* "struct lguest" contains all we (the Host) know about a Guest. */
 	struct lguest *lg;
 	int err;
-	unsigned long args[4];
+	unsigned long args[5];
 	char snapshot_path[256] = {0};
+	bool clean;
 
 	/*
 	 * We grab the Big Lguest lock, which protects against multiple
@@ -344,6 +345,9 @@ static int initialize(struct file *file, const unsigned long __user *input)
 
 	copy_from_user(snapshot_path, (char*)args[3], sizeof(snapshot_path));
 	printk("snapshot_path: %s\n", snapshot_path);
+
+	copy_from_user(&clean, (bool*)args[4], sizeof(bool));
+	printk("clean load? %s\n", clean ? "TRUE" : "FALSE");
 
 	lg = kzalloc(sizeof(*lg), GFP_KERNEL);
 	if (!lg) {

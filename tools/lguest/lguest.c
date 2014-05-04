@@ -567,12 +567,13 @@ static void concat(char *dst, char *args[])
  * the base of Guest "physical" memory, the top physical page to allow and the
  * entry point for the Guest.
  */
-static void tell_kernel(unsigned long start, char *snapshot_path)
+static void tell_kernel(unsigned long start, char *snapshot_path, bool *clean)
 {
 	unsigned long args[] = { LHREQ_INITIALIZE,
 				 (unsigned long)guest_base,
 				 guest_limit / getpagesize(), start, 
-				 (long)snapshot_path };
+				 (long)snapshot_path,
+				 (long)clean};
 	verbose("Guest: %p - %p (%#lx)\n",
 		guest_base, guest_base + guest_limit, guest_limit);
 	lguest_fd = open_or_die("/dev/lguest", O_RDWR);
@@ -1885,6 +1886,7 @@ static struct option opts[] = {
 	{ "username", 1, NULL, 'u' },
 	{ "chroot", 1, NULL, 'c' },
 	{ "snapshot", 1, NULL, 's' },
+	{ "clean", 0, NULL, 'f'},
 	{ NULL },
 };
 static void usage(void)
@@ -1893,7 +1895,8 @@ static void usage(void)
 	     "[--tunnet=(<ipaddr>:<macaddr>|bridge:<bridgename>:<macaddr>)\n"
 	     "|--block=<filename>|--initrd=<filename>]...\n"
 	     "<mem-in-mb> vmlinux [args...]\n"
-	     "[--snapshot snapshot_path]"
+	     "[--snapshot snapshot_path]\n",
+	     "[--clean]"
 	     );
 }
 
@@ -1911,6 +1914,9 @@ int main(int argc, char *argv[])
 
 	/* The path of the snapshot to load */
 	char snapshot_path[256] = {0};
+
+	/* Flag to tell kernel if clean load or not */
+	bool clean = false;
 
 	/* Password structure for initgroups/setres[gu]id */
 	struct passwd *user_details = NULL;
@@ -1985,6 +1991,9 @@ int main(int argc, char *argv[])
 		case 's':
 			strncpy(snapshot_path, optarg, 256);
 			break;
+		case 'f':
+			clean = true;
+			break;
 		default:
 			warnx("Unknown argument %s", argv[optind]);
 			usage();
@@ -2051,7 +2060,7 @@ int main(int argc, char *argv[])
 	boot->hdr.loadflags |= KEEP_SEGMENTS;
 
 	/* We tell the kernel to initialize the Guest. */
-	tell_kernel(start, snapshot_path);
+	tell_kernel(start, snapshot_path, &clean);
 
 	/* Ensure that we terminate if a device-servicing child dies. */
 	signal(SIGCHLD, kill_launcher);
