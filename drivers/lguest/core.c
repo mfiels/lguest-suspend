@@ -93,10 +93,43 @@ void dump_cpu_regs(struct lg_cpu *cpu) {
 	printk("eip: %ld, cs: %ld, eflags: %ld, esp: %ld, ss: %ld\n", regs->eip, regs->cs, regs->eflags, regs->esp, regs->ss);
 }
 
-void write_snapshot(struct lg_cpu *cpu) {
+static void read_cpu_regs(struct lg_cpu *cpu) {
+	struct file *regs;
+	regs = file_open("/tmp/lgregs", O_RDWR, 0644);
+	file_read(regs, 0, (void *) cpu->regs, sizeof(struct lguest_regs));
+	file_close(regs);
+}
+
+static void write_cpu_regs(struct lg_cpu *cpu) {
+	struct file *regs;
+	regs = file_open("/tmp/lgregs", O_RDWR | O_CREAT | O_TRUNC, 0644);
+	file_write(regs, 0, (void *) cpu->regs, sizeof(struct lguest_regs));
+	file_close(regs);
+}
+
+static void read_guest_memory(struct lg_cpu *cpu) {
 	int i;
 	struct file *memory;
-	struct file *regs;
+	memory = file_open("/tmp/lgmemory", O_RDWR, 0644);
+	for (i = 0; i < cpu->lg->pfn_limit; i++) {
+		file_read(memory, i * PAGE_SIZE, page_buffer, PAGE_SIZE);
+		__lgwrite(cpu, i * PAGE_SIZE, page_buffer, PAGE_SIZE);
+	}
+	file_close(memory);
+}
+
+static void write_guest_memory(struct lg_cpu *cpu) {
+	int i;
+	struct file *memory;
+	memory = file_open("/tmp/lgmemory", O_RDWR | O_CREAT | O_TRUNC, 0644);
+	for (i = 0; i < cpu->lg->pfn_limit; i++) {
+		__lgread(cpu, page_buffer, i * PAGE_SIZE, PAGE_SIZE);
+		file_write(memory, i * PAGE_SIZE, page_buffer, PAGE_SIZE);
+	}
+	file_close(memory);
+}
+
+void write_snapshot(struct lg_cpu *cpu) {
 	
 	printk("starting snapshot...\n");
 
@@ -105,17 +138,16 @@ void write_snapshot(struct lg_cpu *cpu) {
 	// dump_cpu_regs(cpu);
 
 	// Write guest memory
-	memory = file_open("/tmp/lgmemory", O_RDWR | O_CREAT | O_TRUNC, 0644);
-	for (i = 0; i < cpu->lg->pfn_limit; i++) {
-		__lgread(cpu, page_buffer, i * PAGE_SIZE, PAGE_SIZE);
-		file_write(memory, i * PAGE_SIZE, page_buffer, PAGE_SIZE);
-	}
-	file_close(memory);
+	write_guest_memory(cpu);
+
+	// ERROR: Remove this when done testing guest memory transplants
+	read_guest_memory(cpu);
 
 	// Write guest cpu regs
-	regs = file_open("/tmp/lgregs", O_RDWR | O_CREAT | O_TRUNC, 0644);
-	file_write(regs, 0, (void *) cpu->regs, sizeof(struct lguest_regs));
-	file_close(regs);
+	write_cpu_regs(cpu);
+
+	// ERROR: Remove this when done testing cpu regs transplants
+	read_cpu_regs(cpu);
 
 	// Write shadow page tables
 	write_shadow_page_table(cpu);
