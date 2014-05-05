@@ -11,6 +11,8 @@
 #include <linux/hrtimer.h>
 #include <linux/err.h>
 #include <linux/slab.h>
+#include <linux/semaphore.h>
+
 
 #include <asm/lguest.h>
 
@@ -79,6 +81,9 @@ struct lg_cpu {
 
 	/* Was the guest suspended */
 	int suspended;
+
+	/* Semaphore to suspend the guest */
+	struct semaphore suspend_lock;
 };
 
 struct lg_eventfd {

@@ -263,6 +263,9 @@ static int lg_cpu_start(struct lg_cpu *cpu, unsigned id, unsigned long start_ip)
 	cpu->lg = container_of(cpu, struct lguest, cpus[id]);
 	cpu->lg->nr_cpus++;
 
+	/* Initialize the semaphore for locking */
+	sema_init(&(cpu->suspend_lock), 1);
+
 	/* Each CPU has a timer it can set. */
 	init_clockdev(cpu);
 
@@ -449,14 +452,17 @@ static ssize_t write(struct file *file, const char __user *in,
 	case LHREQ_SUSPEND:
 		printk("SUSPEND REQUEST\n");
 		cpu->suspended = 1;
+		down_interruptible(&cpu->suspend_lock);
 		return 0;
 	case LHREQ_RESUME:
 		printk("RESUME REQUEST\n");
 		cpu->suspended = 0;
+		up(&cpu->suspend_lock);
 		return 0;
 	case LHREQ_SNAPSHOT:
 		printk("SNAPSHOT REQUEST\n");
 		cpu->suspended = 1;
+		down_interruptible(&cpu->suspend_lock);
 		write_snapshot(cpu);
 		// TODO: Write out guest state to files
 		return 0;
