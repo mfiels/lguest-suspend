@@ -413,7 +413,8 @@ int run_guest(struct lg_cpu *cpu, unsigned long __user *user)
 			// cond_resched();
 			// schedule();
 			// printk("Suspended\n");
-			continue;
+			// continue;
+			// TODO: Attempt to fix clock skew and nmi here?
 		}
 
 		/*
