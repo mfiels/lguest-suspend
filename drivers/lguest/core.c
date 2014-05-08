@@ -129,6 +129,21 @@ static void write_guest_memory(struct lg_cpu *cpu) {
 	file_close(memory);
 }
 
+void flatten_lg_cpu(struct lg_cpu *cpu) {
+	struct file *lg_cpu;
+	lg_cpu = file_open("/tmp/lg_cpu", O_RDWR | O_CREAT | O_TRUNC, 0644);
+	// Write out the top structure of lg_cpu
+	file_write(lg_cpu, 0, (void*)cpu, sizeof(struct lg_cpu));
+	file_close(lg_cpu);
+}
+
+void load_lg_cpu(struct lg_cpu *cpu) {
+	struct file *lg_cpu;
+	lg_cpu = file_open("/tmp/lg_cpu", O_RDWR, 0644);
+	file_read(lg_cpu, 0, (void *) cpu, sizeof(struct lg_cpu));
+	file_close(lg_cpu);
+}
+
 void write_snapshot(struct lg_cpu *cpu) {
 	
 	printk("starting snapshot...\n");
@@ -136,6 +151,9 @@ void write_snapshot(struct lg_cpu *cpu) {
 	// This might be useful later, keeping it around
 	// printk("=== DUMPING REGISTERS SNAPSHOT ===\n");
 	// dump_cpu_regs(cpu);
+
+	// Write out the top level of lgcpu
+	flatten_lg_cpu(cpu);
 
 	// Write guest memory
 	write_guest_memory(cpu);
@@ -161,12 +179,35 @@ void write_snapshot(struct lg_cpu *cpu) {
 	printk("snapshot done\n");
 }
 
+static void fixup_cpu(struct lg_cpu *cpu, struct lg_cpu *old_cpu) {
+	cpu->id = old_cpu->id;
+	cpu->cr2 = old_cpu->cr2;
+	cpu->ts = old_cpu->ts;
+	cpu->esp1 = old_cpu->esp1;
+	cpu->ss1 = old_cpu->ss1;
+	cpu->changed = old_cpu->changed;
+	cpu->pending_notify = old_cpu->pending_notify;
+	cpu->regs_page = old_cpu->regs_page;
+	cpu->linear_pages = old_cpu->linear_pages;
+	cpu->cpu_pgd = old_cpu->cpu_pgd;
+	cpu->next_hcall = old_cpu->next_hcall;
+	cpu->hrt = old_cpu->hrt;
+	cpu->halted = old_cpu->halted;
+	cpu->arch = old_cpu->arch;
+	cpu->suspended = old_cpu->suspended;
+	cpu->suspend_lock = old_cpu->suspend_lock;
+}
+
 void rollback(struct lg_cpu *cpu) {
+	struct lg_cpu old;
 	printk("Attempting to rollback...\n");
+	// First load back the top level of lgcpu
+	load_lg_cpu(&old);
+	// Try to load in previous guest state
 	read_guest_memory(cpu);
 	read_cpu_regs(cpu);
-	// read_shadow_page_table(cpu);
-	// remap_physical_pages(cpu);
+	// Attempt to fix cpu
+	// fixup_cpu(cpu, &old);
 	printk("Rollback completed...\n");
 }
 

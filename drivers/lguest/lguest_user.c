@@ -468,10 +468,11 @@ static ssize_t write(struct file *file, const char __user *in,
 		return 0;
 	case LHREQ_ROLLBACK:
 		printk("ROLLBACK REQUEST\n");
+		// Lock the cpu
 		down_interruptible(&cpu->suspend_lock);
+		// Attempt to rollback the memory
 		rollback(cpu);
-		// TODO: fix up lg_cpu
-		// TODO: fix cr3
+		// Unlock
 		up(&cpu->suspend_lock);
 		return 0;
 	default:
