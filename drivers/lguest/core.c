@@ -165,8 +165,8 @@ void rollback(struct lg_cpu *cpu) {
 	printk("Attempting to rollback...\n");
 	read_guest_memory(cpu);
 	read_cpu_regs(cpu);
-	read_shadow_page_table(cpu);
-	remap_physical_pages(cpu);
+	// read_shadow_page_table(cpu);
+	// remap_physical_pages(cpu);
 	printk("Rollback completed...\n");
 }
 
@@ -425,6 +425,7 @@ int run_guest(struct lg_cpu *cpu, unsigned long __user *user)
 			// printk("Suspended\n");
 			// continue;
 			// TODO: Attempt to fix clock skew and nmi here?
+			init_clockdev(cpu);
 		}
 
 		/*
