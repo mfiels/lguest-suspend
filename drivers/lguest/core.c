@@ -141,23 +141,33 @@ void write_snapshot(struct lg_cpu *cpu) {
 	write_guest_memory(cpu);
 
 	// ERROR: Remove this when done testing guest memory transplants
-	read_guest_memory(cpu);
+	// read_guest_memory(cpu);
 
 	// Write guest cpu regs
 	write_cpu_regs(cpu);
 
 	// ERROR: Remove this when done testing cpu regs transplants
-	read_cpu_regs(cpu);
+	// read_cpu_regs(cpu);
 
 	// Write shadow page tables
 	write_shadow_page_table(cpu);
 
 	// ERROR: Remove this when done testing shadow page table transplants
-	read_shadow_page_table(cpu);
+	// read_shadow_page_table(cpu);
 
-	remap_physical_pages(cpu);
+	// ERROR: Remove this when done testing shadow page table transplants
+	// remap_physical_pages(cpu);
 
 	printk("snapshot done\n");
+}
+
+void rollback(struct lg_cpu *cpu) {
+	printk("Attempting to rollback...\n");
+	read_guest_memory(cpu);
+	read_cpu_regs(cpu);
+	read_shadow_page_table(cpu);
+	remap_physical_pages(cpu);
+	printk("Rollback completed...\n");
 }
 
 /*H:010

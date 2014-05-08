@@ -468,11 +468,11 @@ static ssize_t write(struct file *file, const char __user *in,
 		return 0;
 	case LHREQ_ROLLBACK:
 		printk("ROLLBACK REQUEST\n");
-		// TODO: Implement Rollback
-		// TODO: write shadow pagetable
-		// TODO: write registers
+		down_interruptible(&cpu->suspend_lock);
+		rollback(cpu);
 		// TODO: fix up lg_cpu
 		// TODO: fix cr3
+		up(&cpu->suspend_lock);
 		return 0;
 	default:
 		return -EINVAL;

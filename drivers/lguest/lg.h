@@ -231,6 +231,8 @@ void do_hypercalls(struct lg_cpu *cpu);
 void write_timestamp(struct lg_cpu *cpu);
 
 void write_snapshot(struct lg_cpu *cpu);
+void rollback(struct lg_cpu *cpu);
+
 struct file* file_open(const char* path, int flags, int rights);
 void file_close(struct file* file);
 int file_read(struct file* file, unsigned long long offset, unsigned char* data, unsigned int size);
