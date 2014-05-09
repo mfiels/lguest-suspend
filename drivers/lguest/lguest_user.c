@@ -464,7 +464,8 @@ static ssize_t write(struct file *file, const char __user *in,
 		cpu->suspended = 1;
 		down_interruptible(&cpu->suspend_lock);
 		write_snapshot(cpu);
-		up(&cpu->suspend_lock);
+		rollback(cpu);
+		// up(&cpu->suspend_lock);
 		return 0;
 	case LHREQ_ROLLBACK:
 		printk("ROLLBACK REQUEST\n");
