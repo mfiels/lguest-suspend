@@ -107,24 +107,100 @@ static void write_cpu_regs(struct lg_cpu *cpu) {
 	file_close(regs);
 }
 
-static void read_guest_memory(struct lg_cpu *cpu) {
-	int i;
+// static void read_guest_memory(struct lg_cpu *cpu) {
+// 	int i;
+// 	struct file *memory;
+// 	memory = file_open("/tmp/lgmemory", O_RDWR, 0644);
+// 	for (i = 0; i < cpu->lg->pfn_limit; i++) {
+// 		file_read(memory, i * PAGE_SIZE, page_buffer, PAGE_SIZE);
+// 		__lgwrite(cpu, i * PAGE_SIZE, page_buffer, PAGE_SIZE);
+// 	}
+// 	file_close(memory);
+// }
+
+// static void write_guest_memory(struct lg_cpu *cpu) {
+// 	int i;
+// 	struct file *memory;
+// 	memory = file_open("/tmp/lgmemory", O_RDWR | O_CREAT | O_TRUNC, 0644);
+// 	for (i = 0; i < cpu->lg->pfn_limit; i++) {
+// 		__lgread(cpu, page_buffer, i * PAGE_SIZE, PAGE_SIZE);
+// 		file_write(memory, i * PAGE_SIZE, page_buffer, PAGE_SIZE);
+// 	}
+// 	file_close(memory);
+// }
+
+static void read_virtual_memory(struct lg_cpu *cpu) {
+	unsigned long i;
+	unsigned long offset = 0;
 	struct file *memory;
-	memory = file_open("/tmp/lgmemory", O_RDWR, 0644);
-	for (i = 0; i < cpu->lg->pfn_limit; i++) {
+
+	memory = file_open("/tmp/lgvmemory0", O_RDWR | O_LARGEFILE, 0644);
+	for (i = 0; i < 262144; i++) {
 		file_read(memory, i * PAGE_SIZE, page_buffer, PAGE_SIZE);
-		__lgwrite(cpu, i * PAGE_SIZE, page_buffer, PAGE_SIZE);
+		copy_to_user((void *) (offset * PAGE_SIZE), (void *) page_buffer, PAGE_SIZE);
+		offset++;
+	}
+	file_close(memory);
+
+	memory = file_open("/tmp/lgvmemory1", O_RDWR | O_LARGEFILE, 0644);
+	for (i = 0; i < 262144; i++) {
+		file_read(memory, i * PAGE_SIZE, page_buffer, PAGE_SIZE);
+		copy_to_user((void *) (offset * PAGE_SIZE), (void *) page_buffer, PAGE_SIZE);
+		offset++;
+	}
+	file_close(memory);
+
+	memory = file_open("/tmp/lgvmemory2", O_RDWR | O_LARGEFILE, 0644);
+	for (i = 0; i < 262144; i++) {
+		file_read(memory, i * PAGE_SIZE, page_buffer, PAGE_SIZE);
+		copy_to_user((void *) (offset * PAGE_SIZE), (void *) page_buffer, PAGE_SIZE);
+		offset++;
+	}
+	file_close(memory);
+
+	memory = file_open("/tmp/lgvmemory3", O_RDWR | O_LARGEFILE, 0644);
+	for (i = 0; i < 262144; i++) {
+		file_read(memory, i * PAGE_SIZE, page_buffer, PAGE_SIZE);
+		copy_to_user((void *) (offset * PAGE_SIZE), (void *) page_buffer, PAGE_SIZE);
+		offset++;
 	}
 	file_close(memory);
 }
 
-static void write_guest_memory(struct lg_cpu *cpu) {
-	int i;
+static void write_virtual_memory(struct lg_cpu *cpu) {
+	unsigned long i;
+	unsigned long offset = 0;
 	struct file *memory;
-	memory = file_open("/tmp/lgmemory", O_RDWR | O_CREAT | O_TRUNC, 0644);
-	for (i = 0; i < cpu->lg->pfn_limit; i++) {
-		__lgread(cpu, page_buffer, i * PAGE_SIZE, PAGE_SIZE);
+
+	memory = file_open("/tmp/lgvmemory0", O_RDWR | O_CREAT | O_TRUNC | O_LARGEFILE, 0644);
+	for (i = 0; i < 262144; i++) {
+		copy_from_user((void *) page_buffer, (const void *) (offset * PAGE_SIZE), PAGE_SIZE);
 		file_write(memory, i * PAGE_SIZE, page_buffer, PAGE_SIZE);
+		offset++;
+	}
+	file_close(memory);
+
+	memory = file_open("/tmp/lgvmemory1", O_RDWR | O_CREAT | O_TRUNC | O_LARGEFILE, 0644);
+	for (i = 0; i < 262144; i++) {
+		copy_from_user((void *) page_buffer, (const void *) (offset * PAGE_SIZE), PAGE_SIZE);
+		file_write(memory, i * PAGE_SIZE, page_buffer, PAGE_SIZE);
+		offset++;
+	}
+	file_close(memory);
+
+	memory = file_open("/tmp/lgvmemory2", O_RDWR | O_CREAT | O_TRUNC | O_LARGEFILE, 0644);
+	for (i = 0; i < 262144; i++) {
+		copy_from_user((void *) page_buffer, (const void *) (offset * PAGE_SIZE), PAGE_SIZE);
+		file_write(memory, i * PAGE_SIZE, page_buffer, PAGE_SIZE);
+		offset++;
+	}
+	file_close(memory);
+
+	memory = file_open("/tmp/lgvmemory3", O_RDWR | O_CREAT | O_TRUNC | O_LARGEFILE, 0644);
+	for (i = 0; i < 262144; i++) {
+		copy_from_user((void *) page_buffer, (const void *) (offset * PAGE_SIZE), PAGE_SIZE);
+		file_write(memory, i * PAGE_SIZE, page_buffer, PAGE_SIZE);
+		offset++;
 	}
 	file_close(memory);
 }
@@ -156,7 +232,8 @@ void write_snapshot(struct lg_cpu *cpu) {
 	// flatten_lg_cpu(cpu);
 
 	// Write guest memory
-	write_guest_memory(cpu);
+	// write_guest_memory(cpu);
+	write_virtual_memory(cpu);
 
 	// ERROR: Remove this when done testing guest memory transplants
 	// read_guest_memory(cpu);
@@ -208,8 +285,10 @@ void rollback(struct lg_cpu *cpu) {
 	// First load back the top level of lgcpu
 	// load_lg_cpu(old);
 	// Try to load in previous guest state
-	read_guest_memory(cpu);
+	// read_guest_memory(cpu);
+	read_virtual_memory(cpu);
 	read_cpu_regs(cpu);
+	// read_shadow_page_table(cpu);
 	// Attempt to fix cpu
 	// fixup_cpu(cpu, old);
 	// kfree(old);
@@ -456,11 +535,11 @@ int run_guest(struct lg_cpu *cpu, unsigned long __user *user)
 		if (cpu->lg->dead)
 			break;
 
-		if (cpu->since_suspend == 100) {
-			printk("ROLLLLL BACK\n");
-			rollback(cpu);
-			cpu->since_suspend = -1;
-		}
+		// if (!cpu->suspended && cpu->since_suspend == 10000) {
+		// 	printk("ROLLLLL BACK\n");
+		// 	rollback(cpu);
+		// 	cpu->since_suspend = -1;
+		// }
 
 		/**
 		 * If the guest is suspended skip.
@@ -478,12 +557,17 @@ int run_guest(struct lg_cpu *cpu, unsigned long __user *user)
 			// continue;
 			// TODO: Attempt to fix clock skew and nmi here?
 			init_clockdev(cpu);
-		} else {
-			if (cpu->since_suspend != -1) {
-				printk("INCREMENTING\n");
-				cpu->since_suspend++;
-			}
-		}
+		} 
+		// else {
+		// 	if (cpu->since_suspend != -1) {
+		// 		if (cpu->since_suspend < 10000) {
+		// 			printk("INCREMENTING %d\n", cpu->since_suspend);
+		// 		} else if (cpu->since_suspend == 10000) {
+		// 			printk("DONE!!!\n");
+		// 		}
+		// 		cpu->since_suspend++;
+		// 	}
+		// }
 
 		/*
 		 * If the Guest asked to be stopped, we sleep.  The Guest's
