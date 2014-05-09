@@ -450,31 +450,44 @@ static ssize_t write(struct file *file, const char __user *in,
 	case LHREQ_EVENTFD:
 		return attach_eventfd(lg, input);
 	case LHREQ_SUSPEND:
-		printk("SUSPEND REQUEST\n");
-		cpu->suspended = 1;
-		down_interruptible(&cpu->suspend_lock);
+		if(down_trylock(&cpu->suspend_lock) == 0) {
+			printk("SUSPEND REQUEST\n");
+			// Attempt to suspend the Guest
+			cpu->suspended = 1;
+		} else {
+			printk("Cannot suspend, something else has lock.\n");
+		}
 		return 0;
 	case LHREQ_RESUME:
 		printk("RESUME REQUEST\n");
+		// Attempt to resume the Guest
 		cpu->suspended = 0;
 		up(&cpu->suspend_lock);
 		return 0;
 	case LHREQ_SNAPSHOT:
-		printk("SNAPSHOT REQUEST\n");
-		cpu->suspended = 1;
-		down_interruptible(&cpu->suspend_lock);
-		write_snapshot(cpu);
-		rollback(cpu);
-		// up(&cpu->suspend_lock);
+		if(down_trylock(&cpu->suspend_lock) == 0) {
+			printk("SNAPSHOT REQUEST\n");
+			// Aquire lock
+			cpu->suspended = 1;
+			// Take snapshot
+			write_snapshot(cpu);
+			cpu->suspended = 0;
+			// Release lock
+			up(&cpu->suspend_lock);
+		} else {
+			printk("Cannot snapshot, something else has lock\n");
+		}
 		return 0;
 	case LHREQ_ROLLBACK:
-		printk("ROLLBACK REQUEST\n");
-		// Lock the cpu
-		down_interruptible(&cpu->suspend_lock);
-		// Attempt to rollback the memory
-		rollback(cpu);
-		// Unlock
-		up(&cpu->suspend_lock);
+		if(down_trylock(&cpu->suspend_lock) == 0) {
+			printk("ROLLBACK REQUEST\n");
+			// Attempt to rollback the memory
+			rollback(cpu);
+			// Unlock
+			up(&cpu->suspend_lock);
+		} else {
+			printk("Cannot rollback, something else has lock\n");
+		}
 		return 0;
 	default:
 		return -EINVAL;
