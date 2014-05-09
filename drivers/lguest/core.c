@@ -153,7 +153,7 @@ void write_snapshot(struct lg_cpu *cpu) {
 	// dump_cpu_regs(cpu);
 
 	// Write out the top level of lgcpu
-	flatten_lg_cpu(cpu);
+	// flatten_lg_cpu(cpu);
 
 	// Write guest memory
 	write_guest_memory(cpu);
@@ -179,6 +179,7 @@ void write_snapshot(struct lg_cpu *cpu) {
 	printk("snapshot done\n");
 }
 
+/*
 static void fixup_cpu(struct lg_cpu *cpu, struct lg_cpu *old_cpu) {
 	cpu->id = old_cpu->id;
 	cpu->cr2 = old_cpu->cr2;
@@ -197,17 +198,19 @@ static void fixup_cpu(struct lg_cpu *cpu, struct lg_cpu *old_cpu) {
 	cpu->suspended = old_cpu->suspended;
 	cpu->suspend_lock = old_cpu->suspend_lock;
 }
+*/
 
 void rollback(struct lg_cpu *cpu) {
-	struct lg_cpu old;
+	// struct lg_cpu *old = kmalloc(sizeof(struct lg_cpu), GFP_KERNEL);
 	printk("Attempting to rollback...\n");
 	// First load back the top level of lgcpu
-	load_lg_cpu(&old);
+	// load_lg_cpu(old);
 	// Try to load in previous guest state
 	read_guest_memory(cpu);
 	read_cpu_regs(cpu);
 	// Attempt to fix cpu
-	// fixup_cpu(cpu, &old);
+	// fixup_cpu(cpu, old);
+	// kfree(old);
 	printk("Rollback completed...\n");
 }
 
