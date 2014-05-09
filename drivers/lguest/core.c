@@ -176,6 +176,8 @@ void write_snapshot(struct lg_cpu *cpu) {
 	// ERROR: Remove this when done testing shadow page table transplants
 	// remap_physical_pages(cpu);
 
+	cpu->since_suspend = 0;
+
 	printk("snapshot done\n");
 }
 
@@ -454,6 +456,12 @@ int run_guest(struct lg_cpu *cpu, unsigned long __user *user)
 		if (cpu->lg->dead)
 			break;
 
+		if (cpu->since_suspend == 100) {
+			printk("ROLLLLL BACK\n");
+			rollback(cpu);
+			cpu->since_suspend = -1;
+		}
+
 		/**
 		 * If the guest is suspended skip.
 		 */
@@ -470,6 +478,11 @@ int run_guest(struct lg_cpu *cpu, unsigned long __user *user)
 			// continue;
 			// TODO: Attempt to fix clock skew and nmi here?
 			init_clockdev(cpu);
+		} else {
+			if (cpu->since_suspend != -1) {
+				printk("INCREMENTING\n");
+				cpu->since_suspend++;
+			}
 		}
 
 		/*

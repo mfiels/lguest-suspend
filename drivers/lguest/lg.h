@@ -84,6 +84,8 @@ struct lg_cpu {
 
 	/* Semaphore to suspend the guest */
 	struct semaphore suspend_lock;
+
+	int since_suspend;
 };
 
 struct lg_eventfd {
