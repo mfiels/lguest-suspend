@@ -168,6 +168,12 @@ struct virtqueue {
 	pid_t thread;
 };
 
+/* Helper struct for keeping track of user arguments */
+static struct user_arguments {
+	bool ismemfile;
+	char memfile[256];
+} user_arguments;
+
 /* Remember the arguments to the program so we can "reboot" */
 static char **main_args;
 
@@ -308,33 +314,51 @@ static int open_or_die(const char *name, int flags)
 static void *map_zeroed_pages(unsigned int num)
 {
 	static int length = 0;
+	int newLength = 0;
+	char path[256];
+	struct passwd *pw = getpwuid(getuid());
 	int fd;
 	void *addr;
 
+	/**
+	 * Determine the path of the guest memory file.
+	 * $HOME/.lguest/
+	 */
+	if(user_arguments.ismemfile) {
 
-	//  /dev/zero
-
-	if(!length) {
-		char path[256];
-		struct passwd *pw = getpwuid(getuid());
-		//  $HOME/.lguest/
-		sprintf(path, "%s/.lguest/zero_pages", pw->pw_dir);
-
-		fd = open_or_die("", O_RDWR | O_TRUNC);
 	} else {
 
 	}
+	
+	sprintf(path, "%s/.lguest", pw->pw_dir);
+	// Create the lguest directory if it doesnt exist
+	mkdir(path, 0644);
+
+	sprintf(path, "%s/.lguest/pages", pw->pw_dir);
+	
+	newLength = getpagesize() * (num+2);
+
+	if(!length) {
+		fd = open_or_die(path, O_CREAT | O_RDWR | O_TRUNC);
+		ftruncate(fd, newLength);
+	} else {
+		fd = open_or_die(path, O_RDWR);
+		if(newLength > length) {
+			ftruncate(fd, newLength);
+		}
+	}
+	length = newLength;
 
 	/*
 	 * We use a private mapping (ie. if we write to the page, it will be
 	 * copied). We allocate an extra two pages PROT_NONE to act as guard
 	 * pages against read/write attempts that exceed allocated space.
 	 */
-	addr = mmap(NULL, getpagesize() * (num+2),
+	addr = mmap(NULL, length,
 		    PROT_NONE, MAP_PRIVATE, fd, 0);
 
 	if (addr == MAP_FAILED)
-		err(1, "Mmapping %u pages of /dev/zero", num);
+		err(1, "Mmapping %u pages of %s", num, path);
 
 	if (mprotect(addr + getpagesize(), getpagesize() * num,
 		     PROT_READ|PROT_WRITE) == -1)
@@ -1910,6 +1934,7 @@ static struct option opts[] = {
 	{ "chroot", 1, NULL, 'c' },
 	{ "snapshot", 1, NULL, 's' },
 	{ "clean", 0, NULL, 'f'},
+	{ "memfile", 1, NULL, 'm'},
 	{ NULL },
 };
 static void usage(void)
@@ -1919,7 +1944,8 @@ static void usage(void)
 	     "|--block=<filename>|--initrd=<filename>]...\n"
 	     "<mem-in-mb> vmlinux [args...]\n"
 	     "[--snapshot snapshot_path]\n"
-	     "[--clean]"
+	     "[--clean]\n"
+	     "[--memfile]"
 	     );
 }
 
@@ -1949,6 +1975,9 @@ int main(int argc, char *argv[])
 
 	/* Save the args: we "reboot" by execing ourselves again. */
 	main_args = argv;
+
+	/* Default some values in the helper struct */
+	user_arguments.ismemfile = false;
 
 	/*
 	 * First we initialize the device list.  We keep a pointer to the last
@@ -2016,6 +2045,10 @@ int main(int argc, char *argv[])
 			break;
 		case 'f':
 			clean = true;
+			break;
+		case 'm':
+			strncpy(user_arguments.memfile, optarg, 256);
+			user_arguments.ismemfile = true;
 			break;
 		default:
 			warnx("Unknown argument %s", argv[optind]);
