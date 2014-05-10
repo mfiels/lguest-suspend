@@ -231,6 +231,8 @@ void do_hypercalls(struct lg_cpu *cpu);
 void write_timestamp(struct lg_cpu *cpu);
 
 void write_snapshot(struct lg_cpu *cpu);
+void rollback(struct lg_cpu *cpu);
+
 struct file* file_open(const char* path, int flags, int rights);
 void file_close(struct file* file);
 int file_read(struct file* file, unsigned long long offset, unsigned char* data, unsigned int size);
@@ -238,6 +240,9 @@ int file_write(struct file* file, unsigned long long offset, unsigned char* data
 void write_shadow_page_table(struct lg_cpu *cpu);
 void read_shadow_page_table(struct lg_cpu *cpu);
 void remap_physical_pages(struct lg_cpu *cpu);
+// lg_cpu serialization operations
+void flatten_lg_cpu(struct lg_cpu *cpu);
+void load_lg_cpu(struct lg_cpu *cpu);
 
 /*L:035
  * Let's step aside for the moment, to study one important routine that's used
