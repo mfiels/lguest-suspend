@@ -307,8 +307,23 @@ static int open_or_die(const char *name, int flags)
 /* map_zeroed_pages() takes a number of pages. */
 static void *map_zeroed_pages(unsigned int num)
 {
-	int fd = open_or_die("/dev/zero", O_RDONLY);
+	static int length = 0;
+	int fd;
 	void *addr;
+
+
+	//  /dev/zero
+
+	if(!length) {
+		char path[256];
+		struct passwd *pw = getpwuid(getuid());
+		//  $HOME/.lguest/
+		sprintf(path, "%s/.lguest/zero_pages", pw->pw_dir);
+
+		fd = open_or_die("", O_RDWR | O_TRUNC);
+	} else {
+
+	}
 
 	/*
 	 * We use a private mapping (ie. if we write to the page, it will be
