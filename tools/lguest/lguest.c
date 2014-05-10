@@ -1863,6 +1863,12 @@ static void __attribute__((noreturn)) run_guest(void)
 	for (;;) {
 		unsigned long notify_addr;
 		int readval;
+		int ioctlval;
+
+		ioctlval = ioctl(lguest_fd, 0);
+		if (ioctlval != -1 && errno != ENOTTY) {
+			err(1, "Bad ioctl return value: %d", errno);
+		}
 
 		/* We read from the /dev/lguest device to run the Guest. */
 		readval = pread(lguest_fd, &notify_addr,

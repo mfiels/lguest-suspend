@@ -248,6 +248,10 @@ static ssize_t read(struct file *file, char __user *user, size_t size,loff_t*o)
 	return run_guest(cpu, (unsigned long __user *)user);
 }
 
+static long lg_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
+	return -ENOTTY;
+}
+
 /*L:025
  * This actually initializes a CPU.  For the moment, a Guest is only
  * uniprocessor, so "id" is always 0.
@@ -573,6 +577,7 @@ static const struct file_operations lguest_fops = {
 	.write	 = write,
 	.read	 = read,
 	.llseek  = default_llseek,
+	.unlocked_ioctl = lg_ioctl,
 };
 /*:*/
 
