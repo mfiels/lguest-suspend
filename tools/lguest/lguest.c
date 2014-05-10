@@ -308,33 +308,46 @@ static int open_or_die(const char *name, int flags)
 static void *map_zeroed_pages(unsigned int num)
 {
 	static int length = 0;
+	int newLength = 0;
+	char path[256];
+	struct passwd *pw = getpwuid(getuid());
 	int fd;
 	void *addr;
 
+	/**
+	 * Determine the path of the guest memory file.
+	 * $HOME/.lguest/
+	 */
+	sprintf(path, "%s/.lguest", pw->pw_dir);
 
-	//  /dev/zero
+	// Create the lguest directory if it doesnt exist
+	mkdir(path, 0644);
+
+	sprintf(path, "%s/.lguest/pages", pw->pw_dir);
+	
+	newLength = getpagesize() * (num+2);
 
 	if(!length) {
-		char path[256];
-		struct passwd *pw = getpwuid(getuid());
-		//  $HOME/.lguest/
-		sprintf(path, "%s/.lguest/zero_pages", pw->pw_dir);
-
-		fd = open_or_die("", O_RDWR | O_TRUNC);
+		fd = open_or_die(path, O_CREAT | O_RDWR | O_TRUNC);
+		ftruncate(fd, newLength);
 	} else {
-
+		fd = open_or_die(path, O_RDWR);
+		if(newLength > length) {
+			ftruncate(fd, newLength);
+		}
 	}
+	length = newLength;
 
 	/*
 	 * We use a private mapping (ie. if we write to the page, it will be
 	 * copied). We allocate an extra two pages PROT_NONE to act as guard
 	 * pages against read/write attempts that exceed allocated space.
 	 */
-	addr = mmap(NULL, getpagesize() * (num+2),
+	addr = mmap(NULL, length,
 		    PROT_NONE, MAP_PRIVATE, fd, 0);
 
 	if (addr == MAP_FAILED)
-		err(1, "Mmapping %u pages of /dev/zero", num);
+		err(1, "Mmapping %u pages of %s", num, path);
 
 	if (mprotect(addr + getpagesize(), getpagesize() * num,
 		     PROT_READ|PROT_WRITE) == -1)
