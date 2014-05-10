@@ -249,6 +249,14 @@ static ssize_t read(struct file *file, char __user *user, size_t size,loff_t*o)
 }
 
 static long lg_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
+	struct lguest *lg = filp->private_data;
+	struct lg_cpu *cpu = &lg->cpus[0];
+
+	switch (cmd) {
+		case LGIOCTL_KILL:
+			kill_guest(cpu, "guest killed through ioctl");
+			return 0;
+	}
 	return -ENOTTY;
 }
 

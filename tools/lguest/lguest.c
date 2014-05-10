@@ -908,8 +908,10 @@ static void console_input(struct virtqueue *vq)
 		struct timeval now;
 		gettimeofday(&now, NULL);
 		/* Kill all Launcher processes with SIGINT, like normal ^C */
-		if (now.tv_sec <= abort->start.tv_sec+1)
-			kill(0, SIGINT);
+		if (now.tv_sec <= abort->start.tv_sec+1) {
+			// kill(0, SIGINT);
+			ioctl(lguest_fd, LGIOCTL_KILL);
+		}
 		abort->count = 0;
 	}
 }
