@@ -1889,6 +1889,7 @@ static void __attribute__((noreturn)) run_guest(void)
 		int readval;
 		int ioctlval;
 
+		// TODO: Use this ioctl for more complicated data transfer
 		ioctlval = ioctl(lguest_fd, 0);
 		if (ioctlval != -1 && errno != ENOTTY) {
 			err(1, "Bad ioctl return value: %d", errno);
