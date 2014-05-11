@@ -69,6 +69,8 @@ enum lguest_req
 	LHREQ_ROLLBACK,
 };
 
+#define LGIOCTL_KILL	1
+
 /*
  * The alignment to use between consumer and producer parts of vring.
  * x86 pagesize for historical reasons.

@@ -912,8 +912,10 @@ static void console_input(struct virtqueue *vq)
 		struct timeval now;
 		gettimeofday(&now, NULL);
 		/* Kill all Launcher processes with SIGINT, like normal ^C */
-		if (now.tv_sec <= abort->start.tv_sec+1)
-			kill(0, SIGINT);
+		if (now.tv_sec <= abort->start.tv_sec+1) {
+			// kill(0, SIGINT);
+			ioctl(lguest_fd, LGIOCTL_KILL);
+		}
 		abort->count = 0;
 	}
 }
@@ -1891,6 +1893,13 @@ static void __attribute__((noreturn)) run_guest(void)
 	for (;;) {
 		unsigned long notify_addr;
 		int readval;
+		int ioctlval;
+
+		// TODO: Use this ioctl for more complicated data transfer
+		ioctlval = ioctl(lguest_fd, 0);
+		if (ioctlval != -1 && errno != ENOTTY) {
+			err(1, "Bad ioctl return value: %d", errno);
+		}
 
 		/* We read from the /dev/lguest device to run the Guest. */
 		readval = pread(lguest_fd, &notify_addr,
