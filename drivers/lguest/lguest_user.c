@@ -248,14 +248,58 @@ static ssize_t read(struct file *file, char __user *user, size_t size,loff_t*o)
 	return run_guest(cpu, (unsigned long __user *)user);
 }
 
+static void lg_convert_state(struct lguest *lg, struct lguest_state_group *state) {
+	struct lguest_regs *regs = lg->cpus[0].regs;
+	struct lguest_data *data = lg->lguest_data;
+
+	state->eax = regs->eax;
+	state->ebx = regs->ebx;
+	state->ecx = regs->ecx;
+	state->edx = regs->edx;
+	state->esi = regs->esi;
+	state->edi = regs->edi;
+	state->ebp = regs->ebp;
+	state->gs = regs->gs;
+	state->fs = regs->fs;
+	state->ds = regs->ds;
+	state->es = regs->es;
+	state->trapnum = regs->trapnum;
+	state->errcode = regs->errcode;
+	state->eip = regs->eip;
+	state->cs = regs->cs;
+	state->eflags = regs->eflags;
+	state->esp = regs->esp;
+	state->ss = regs->ss;
+
+	state->irq_enabled = data->irq_enabled;
+	memcpy(state->blocked_interrupts, data->blocked_interrupts, LGUEST_IRQS);
+	state->cr2 = data->cr2;
+	state->time = data->time;
+	state->irq_pending = data->irq_pending;
+	memcpy(state->hcall_status, data->hcall_status, LHCALL_RING_SIZE);
+	memcpy(state->hcalls, data->hcalls, LHCALL_RING_SIZE);
+	state->reserve_mem = data->reserve_mem;
+	state->tsc_khz = data->tsc_khz;
+	state->noirq_start = data->noirq_start;
+	state->noirq_end = data->noirq_end;
+	state->kernel_address = data->kernel_address;
+	state->syscall_vec = data->syscall_vec;
+}
+
+struct lguest_state_group lg_state_data;
 static long lg_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
 	struct lguest *lg = filp->private_data;
 	struct lg_cpu *cpu = &lg->cpus[0];
+
+	lg_convert_state(lg, &lg_state_data);
 
 	switch (cmd) {
 		case LGIOCTL_KILL:
 			kill_guest(cpu, "guest killed through ioctl");
 			return 0;
+		// case LGIOCTL_GETREGS:
+		// 	copy_to_user((char *) arg, (char *) (&lg_state_data), sizeof(struct lguest_state_group));
+		// 	return (long) sizeof(struct lguest_state_group);
 	}
 	return -ENOTTY;
 }

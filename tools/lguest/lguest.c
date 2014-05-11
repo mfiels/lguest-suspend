@@ -866,6 +866,7 @@ static void console_input(struct virtqueue *vq)
 	unsigned int head, in_num, out_num;
 	struct console_abort *abort = vq->dev->priv;
 	struct iovec iov[vq->vring.num];
+	struct lguest_state_group state_data;
 
 	/* Make sure there's a descriptor available. */
 	head = wait_for_vq_desc(vq, iov, &out_num, &in_num);
@@ -911,6 +912,8 @@ static void console_input(struct virtqueue *vq)
 		if (now.tv_sec <= abort->start.tv_sec+1) {
 			// kill(0, SIGINT);
 			ioctl(lguest_fd, LGIOCTL_KILL);
+			// ioctl(lguest_fd, LGIOCTL_GETREGS, &state_data);
+			// printf("The value of eax is: %lu\n", state_data.eax);
 		}
 		abort->count = 0;
 	}

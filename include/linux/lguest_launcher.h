@@ -69,7 +69,46 @@ enum lguest_req
 	LHREQ_ROLLBACK,
 };
 
-#define LGIOCTL_KILL	1
+#ifndef LG_HCALL_ARGS
+#define LG_HCALL_ARGS
+struct hcall_args {
+          /* These map directly onto eax/ebx/ecx/edx/esi in struct lguest_regs */
+          unsigned long arg0, arg1, arg2, arg3, arg4;
+};
+#endif
+
+struct lguest_state_group {
+	// Data
+	unsigned int irq_enabled;
+
+	unsigned long blocked_interrupts[32];
+
+	unsigned long cr2;
+	struct timespec time;
+	int irq_pending;
+	u8 hcall_status[64];
+	struct hcall_args hcalls[64];
+	unsigned long reserve_mem;
+	u32 tsc_khz;
+	unsigned long noirq_start, noirq_end;	
+	unsigned long kernel_address;
+	unsigned int syscall_vec;
+	
+	// Registers
+	unsigned long eax, ebx, ecx, edx;
+	unsigned long esi, edi, ebp;
+	unsigned long gs;
+	unsigned long fs, ds, es;
+	unsigned long trapnum, errcode;
+	unsigned long eip;
+	unsigned long cs;
+	unsigned long eflags;
+	unsigned long esp;
+	unsigned long ss;
+};
+
+#define LGIOCTL_KILL		1
+#define LGIOCTL_GETREGS 2
 
 /*
  * The alignment to use between consumer and producer parts of vring.
