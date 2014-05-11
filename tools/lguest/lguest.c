@@ -635,7 +635,9 @@ static void tell_kernel(unsigned long start, char *snapshot_path, bool *clean)
 				 (unsigned long)guest_base,
 				 guest_limit / getpagesize(), start, 
 				 (long)snapshot_path,
-				 (long)clean};
+				 (long)clean,
+				 0 /* Place Holder for guest guest register state */,
+				 0, /* and lguest data */};
 	verbose("Guest: %p - %p (%#lx)\n",
 		guest_base, guest_base + guest_limit, guest_limit);
 	lguest_fd = open_or_die("/dev/lguest", O_RDWR);
