@@ -310,6 +310,20 @@ static int open_or_die(const char *name, int flags)
 	return fd;
 }
 
+struct header {
+	char version[20];
+	size_t size;
+};
+/* The two fields should be: a version number, and the header length. There'll be more later. */
+static void open_memfile(int fd) {
+	struct header h = {
+		.version = "0.0.0",
+		.size = getpagesize()
+	};
+	// ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset);
+	pwrite(fd, &h, sizeof(h), 0);
+}
+
 /* map_zeroed_pages() takes a number of pages. */
 static void *map_zeroed_pages(unsigned int num)
 {
@@ -363,6 +377,9 @@ static void *map_zeroed_pages(unsigned int num)
 
 	if (addr == MAP_FAILED)
 		err(1, "Mmapping %u pages of %s", num, path);
+
+	/* map header information */
+	open_memfile(fd);
 
 	if (mprotect(addr + getpagesize(), getpagesize() * num,
 		     PROT_READ|PROT_WRITE) == -1)
@@ -912,10 +929,8 @@ static void console_input(struct virtqueue *vq)
 		struct timeval now;
 		gettimeofday(&now, NULL);
 		/* Kill all Launcher processes with SIGINT, like normal ^C */
-		if (now.tv_sec <= abort->start.tv_sec+1) {
-			// kill(0, SIGINT);
-			ioctl(lguest_fd, LGIOCTL_KILL);
-		}
+		if (now.tv_sec <= abort->start.tv_sec+1)
+			kill(0, SIGINT);
 		abort->count = 0;
 	}
 }
@@ -1893,13 +1908,6 @@ static void __attribute__((noreturn)) run_guest(void)
 	for (;;) {
 		unsigned long notify_addr;
 		int readval;
-		int ioctlval;
-
-		// TODO: Use this ioctl for more complicated data transfer
-		ioctlval = ioctl(lguest_fd, 0);
-		if (ioctlval != -1 && errno != ENOTTY) {
-			err(1, "Bad ioctl return value: %d", errno);
-		}
 
 		/* We read from the /dev/lguest device to run the Guest. */
 		readval = pread(lguest_fd, &notify_addr,
