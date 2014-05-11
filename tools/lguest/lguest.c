@@ -325,16 +325,20 @@ static void *map_zeroed_pages(unsigned int num)
 	 * $HOME/.lguest/
 	 */
 	if(user_arguments.ismemfile) {
-
+		sprintf(path, "%s", user_arguments.memfile);
 	} else {
-
+		sprintf(path, "%s/.lguest", pw->pw_dir);
 	}
 	
-	sprintf(path, "%s/.lguest", pw->pw_dir);
+	
 	// Create the lguest directory if it doesnt exist
 	mkdir(path, 0644);
 
-	sprintf(path, "%s/.lguest/pages", pw->pw_dir);
+	if(user_arguments.ismemfile) {
+		sprintf(path, "%s/pages", user_arguments.memfile);
+	} else {
+		sprintf(path, "%s/.lguest/pages", pw->pw_dir);
+	}
 	
 	newLength = getpagesize() * (num+2);
 
@@ -1984,6 +1988,14 @@ int main(int argc, char *argv[])
 	/* We're CPU 0.  In fact, that's the only CPU possible right now. */
 	cpu_id = 0;
 
+	/* Search for the --memfile flag */
+	for(i = 1; i < argc; i++) {
+		if(argv[i][0] == '-' && argv[i][2] == 'm') {
+			strncpy(user_arguments.memfile, argv[i+1], 256);
+			user_arguments.ismemfile = true;
+		}
+	}
+
 	/*
 	 * We need to know how much memory so we can set up the device
 	 * descriptor and memory pages for the devices as we parse the command
@@ -2041,8 +2053,7 @@ int main(int argc, char *argv[])
 			clean = true;
 			break;
 		case 'm':
-			strncpy(user_arguments.memfile, optarg, 256);
-			user_arguments.ismemfile = true;
+			/* ignore this case in this loop */
 			break;
 		default:
 			warnx("Unknown argument %s", argv[optind]);
