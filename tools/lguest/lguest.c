@@ -168,6 +168,12 @@ struct virtqueue {
 	pid_t thread;
 };
 
+/* Helper struct for keeping track of user arguments */
+static struct user_arguments {
+	bool ismemfile;
+	char memfile[256];
+} user_arguments;
+
 /* Remember the arguments to the program so we can "reboot" */
 static char **main_args;
 
@@ -318,8 +324,13 @@ static void *map_zeroed_pages(unsigned int num)
 	 * Determine the path of the guest memory file.
 	 * $HOME/.lguest/
 	 */
-	sprintf(path, "%s/.lguest", pw->pw_dir);
+	if(user_arguments.ismemfile) {
 
+	} else {
+
+	}
+	
+	sprintf(path, "%s/.lguest", pw->pw_dir);
 	// Create the lguest directory if it doesnt exist
 	mkdir(path, 0644);
 
@@ -1917,6 +1928,7 @@ static struct option opts[] = {
 	{ "chroot", 1, NULL, 'c' },
 	{ "snapshot", 1, NULL, 's' },
 	{ "clean", 0, NULL, 'f'},
+	{ "memfile", 1, NULL, 'm'},
 	{ NULL },
 };
 static void usage(void)
@@ -1926,7 +1938,8 @@ static void usage(void)
 	     "|--block=<filename>|--initrd=<filename>]...\n"
 	     "<mem-in-mb> vmlinux [args...]\n"
 	     "[--snapshot snapshot_path]\n"
-	     "[--clean]"
+	     "[--clean]\n"
+	     "[--memfile]"
 	     );
 }
 
@@ -1956,6 +1969,9 @@ int main(int argc, char *argv[])
 
 	/* Save the args: we "reboot" by execing ourselves again. */
 	main_args = argv;
+
+	/* Default some values in the helper struct */
+	user_arguments.ismemfile = false;
 
 	/*
 	 * First we initialize the device list.  We keep a pointer to the last
@@ -2023,6 +2039,10 @@ int main(int argc, char *argv[])
 			break;
 		case 'f':
 			clean = true;
+			break;
+		case 'm':
+			strncpy(user_arguments.memfile, optarg, 256);
+			user_arguments.ismemfile = true;
 			break;
 		default:
 			warnx("Unknown argument %s", argv[optind]);
