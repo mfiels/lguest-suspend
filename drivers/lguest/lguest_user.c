@@ -343,8 +343,8 @@ static int initialize(struct file *file, const unsigned long __user *input)
 	bool clean;
 
 	/* Dummy Holder for lg_data */
-	int lg_register_state;
-	int lg_data;
+	int lg_register_state; /* TODO: Place Holder value */
+	int lg_data;		   /* TODO: Place holder value */
 
 	/*
 	 * We grab the Big Lguest lock, which protects against multiple
