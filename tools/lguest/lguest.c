@@ -203,34 +203,6 @@ static struct termios orig_term;
 #define le32_to_cpu(v32) (v32)
 #define le64_to_cpu(v64) (v64)
 
-void send_signal_to_kernel(lgctrl_t current_signal) 
-{
-	unsigned long signal_type = 0;
-
-	switch (current_signal) {
-		case LGCTRL_SUSPEND:
-			signal_type = LHREQ_SUSPEND;
-			break;
-		case LGCTRL_RESUME:
-			signal_type = LHREQ_RESUME;
-			break;
-		case LGCTRL_SNAPSHOT:
-			signal_type = LHREQ_SNAPSHOT;
-			break;
-		case LGCTRL_ROLLBACK:
-			signal_type = LHREQ_ROLLBACK;
-		default:
-			break;
-	}
-
-	if (signal_type == 0) {
-		return;
-	}
-
-	unsigned long buf[] = { signal_type };
-	write(lguest_fd, buf, sizeof(buf));
-}
-
 /* Is this iovec empty? */
 static bool iov_empty(const struct iovec iov[], unsigned int num_iov)
 {
@@ -342,19 +314,53 @@ struct header {
 	struct lguest_state_group state;
 };
 /* The two fields should be: a version number, and the header length. There'll be more later. */
-static int snapshot(struct lguest_state_group *state) {
+static int snapshot() {
 	int fd;
-	struct header h = {
-		.version = "0.0.0",
-		.size = getpagesize(),
-		.state = *state
-	};
+	struct header hdr;
+
+	ioctl(lguest_fd, LGIOCTL_GETREGS, &hdr.state);
+
+	strcpy(hdr.version, "0.0.0");
+	hdr.size = getpagesize();
 
 	fd = open_memfile(O_RDWR);
-	pwrite(fd, &h, sizeof(h), 0);
+	pwrite(fd, &hdr, sizeof(hdr), 0);
 	close(fd);
 
+	printf("Snapshot taken, exiting...\n");
+	kill(0, SIGINT);
+
 	return 0;
+}
+
+void send_signal_to_kernel(lgctrl_t current_signal) 
+{
+	unsigned long signal_type = 0;
+
+	switch (current_signal) {
+		case LGCTRL_SUSPEND:
+			signal_type = LHREQ_SUSPEND;
+			break;
+		case LGCTRL_RESUME:
+			signal_type = LHREQ_RESUME;
+			break;
+		case LGCTRL_SNAPSHOT:
+			signal_type = LHREQ_SNAPSHOT;
+			snapshot();
+			return;
+			break;
+		case LGCTRL_ROLLBACK:
+			signal_type = LHREQ_ROLLBACK;
+		default:
+			break;
+	}
+
+	if (signal_type == 0) {
+		return;
+	}
+
+	unsigned long buf[] = { signal_type };
+	write(lguest_fd, buf, sizeof(buf));
 }
 
 /* map_zeroed_pages() takes a number of pages. */
@@ -893,13 +899,13 @@ struct console_abort {
 	struct timeval start;
 };
 
-static void dump_group_regs(struct lguest_state_group *cpu) {
-	printf("eax: %ld, ebx: %ld, ecx: %ld, edx: %ld\n", cpu->eax, cpu->ebx, cpu->ecx, cpu->edx);
-	printf("esi: %ld, edi: %ld, ebp: %ld\n", cpu->esi, cpu->edi, cpu->ebp);
-	printf("gs: %ld, fs: %ld, ds: %ld, es: %ld\n", cpu->gs, cpu->fs, cpu->ds, cpu->es);
-	printf("trapnum: %ld, errcode: %ld\n", cpu->trapnum, cpu->errcode);
-	printf("eip: %ld, cs: %ld, eflags: %ld, esp: %ld, ss: %ld\n", cpu->eip, cpu->cs, cpu->eflags, cpu->esp, cpu->ss);
-}
+// static void dump_group_regs(struct lguest_state_group *cpu) {
+// 	printf("eax: %ld, ebx: %ld, ecx: %ld, edx: %ld\n", cpu->eax, cpu->ebx, cpu->ecx, cpu->edx);
+// 	printf("esi: %ld, edi: %ld, ebp: %ld\n", cpu->esi, cpu->edi, cpu->ebp);
+// 	printf("gs: %ld, fs: %ld, ds: %ld, es: %ld\n", cpu->gs, cpu->fs, cpu->ds, cpu->es);
+// 	printf("trapnum: %ld, errcode: %ld\n", cpu->trapnum, cpu->errcode);
+// 	printf("eip: %ld, cs: %ld, eflags: %ld, esp: %ld, ss: %ld\n", cpu->eip, cpu->cs, cpu->eflags, cpu->esp, cpu->ss);
+// }
 
 /* This is the routine which handles console input (ie. stdin). */
 static void console_input(struct virtqueue *vq)
@@ -908,7 +914,6 @@ static void console_input(struct virtqueue *vq)
 	unsigned int head, in_num, out_num;
 	struct console_abort *abort = vq->dev->priv;
 	struct iovec iov[vq->vring.num];
-	struct lguest_state_group state_data;
 
 	/* Make sure there's a descriptor available. */
 	head = wait_for_vq_desc(vq, iov, &out_num, &in_num);
@@ -955,9 +960,9 @@ static void console_input(struct virtqueue *vq)
 			// kill(0, SIGINT);
 			// TODO: This is how we can get all snapshot info from the kernel module, need to do this
 			// somewhere else
-			ioctl(lguest_fd, LGIOCTL_GETREGS, &state_data);
-			dump_group_regs(&state_data);
-			snapshot(&state_data);
+			// ioctl(lguest_fd, LGIOCTL_GETREGS, &state_data);
+			// dump_group_regs(&state_data);
+			// snapshot(&state_data);
 			kill(0, SIGINT);
 		}
 		abort->count = 0;
