@@ -310,6 +310,20 @@ static int open_or_die(const char *name, int flags)
 	return fd;
 }
 
+struct header {
+	char version[20];
+	size_t size;
+};
+/* The two fields should be: a version number, and the header length. There'll be more later. */
+static void open_memfile(int fd) {
+	struct header h = {
+		.version = "0.0.0",
+		.size = getpagesize()
+	};
+	// ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset);
+	pwrite(fd, &h, sizeof(h), 0);
+}
+
 /* map_zeroed_pages() takes a number of pages. */
 static void *map_zeroed_pages(unsigned int num)
 {
@@ -325,16 +339,20 @@ static void *map_zeroed_pages(unsigned int num)
 	 * $HOME/.lguest/
 	 */
 	if(user_arguments.ismemfile) {
-
+		sprintf(path, "%s", user_arguments.memfile);
 	} else {
-
+		sprintf(path, "%s/.lguest", pw->pw_dir);
 	}
 	
-	sprintf(path, "%s/.lguest", pw->pw_dir);
+	
 	// Create the lguest directory if it doesnt exist
 	mkdir(path, 0644);
 
-	sprintf(path, "%s/.lguest/pages", pw->pw_dir);
+	if(user_arguments.ismemfile) {
+		sprintf(path, "%s/pages", user_arguments.memfile);
+	} else {
+		sprintf(path, "%s/.lguest/pages", pw->pw_dir);
+	}
 	
 	newLength = getpagesize() * (num+2);
 
@@ -359,6 +377,9 @@ static void *map_zeroed_pages(unsigned int num)
 
 	if (addr == MAP_FAILED)
 		err(1, "Mmapping %u pages of %s", num, path);
+
+	/* map header information */
+	open_memfile(fd);
 
 	if (mprotect(addr + getpagesize(), getpagesize() * num,
 		     PROT_READ|PROT_WRITE) == -1)
@@ -614,7 +635,9 @@ static void tell_kernel(unsigned long start, char *snapshot_path, bool *clean)
 				 (unsigned long)guest_base,
 				 guest_limit / getpagesize(), start, 
 				 (long)snapshot_path,
-				 (long)clean};
+				 (long)clean,
+				 (long)0, /* TODO: Place Holder for guest guest register state */
+				 (long)0, /* TODO: and lguest data */ };
 	verbose("Guest: %p - %p (%#lx)\n",
 		guest_base, guest_base + guest_limit, guest_limit);
 	lguest_fd = open_or_die("/dev/lguest", O_RDWR);
@@ -859,13 +882,13 @@ struct console_abort {
 	struct timeval start;
 };
 
-// static void dump_group_regs(struct lguest_state_group *cpu) {
-// 	printf("eax: %ld, ebx: %ld, ecx: %ld, edx: %ld\n", cpu->eax, cpu->ebx, cpu->ecx, cpu->edx);
-// 	printf("esi: %ld, edi: %ld, ebp: %ld\n", cpu->esi, cpu->edi, cpu->ebp);
-// 	printf("gs: %ld, fs: %ld, ds: %ld, es: %ld\n", cpu->gs, cpu->fs, cpu->ds, cpu->es);
-// 	printf("trapnum: %ld, errcode: %ld\n", cpu->trapnum, cpu->errcode);
-// 	printf("eip: %ld, cs: %ld, eflags: %ld, esp: %ld, ss: %ld\n", cpu->eip, cpu->cs, cpu->eflags, cpu->esp, cpu->ss);
-// }
+static void dump_group_regs(struct lguest_state_group *cpu) {
+	printf("eax: %ld, ebx: %ld, ecx: %ld, edx: %ld\n", cpu->eax, cpu->ebx, cpu->ecx, cpu->edx);
+	printf("esi: %ld, edi: %ld, ebp: %ld\n", cpu->esi, cpu->edi, cpu->ebp);
+	printf("gs: %ld, fs: %ld, ds: %ld, es: %ld\n", cpu->gs, cpu->fs, cpu->ds, cpu->es);
+	printf("trapnum: %ld, errcode: %ld\n", cpu->trapnum, cpu->errcode);
+	printf("eip: %ld, cs: %ld, eflags: %ld, esp: %ld, ss: %ld\n", cpu->eip, cpu->cs, cpu->eflags, cpu->esp, cpu->ss);
+}
 
 /* This is the routine which handles console input (ie. stdin). */
 static void console_input(struct virtqueue *vq)
@@ -918,10 +941,11 @@ static void console_input(struct virtqueue *vq)
 		gettimeofday(&now, NULL);
 		/* Kill all Launcher processes with SIGINT, like normal ^C */
 		if (now.tv_sec <= abort->start.tv_sec+1) {
+			// kill(0, SIGINT);
 			// TODO: This is how we can get all snapshot info from the kernel module, need to do this
 			// somewhere else
 			ioctl(lguest_fd, LGIOCTL_GETREGS, &state_data);
-			// dump_group_regs(&state_data);
+			dump_group_regs(&state_data);
 		}
 		abort->count = 0;
 	}
@@ -1900,13 +1924,6 @@ static void __attribute__((noreturn)) run_guest(void)
 	for (;;) {
 		unsigned long notify_addr;
 		int readval;
-		int ioctlval;
-
-		// TODO: Use this ioctl for more complicated data transfer
-		ioctlval = ioctl(lguest_fd, 0);
-		if (ioctlval != -1 && errno != ENOTTY) {
-			err(1, "Bad ioctl return value: %d", errno);
-		}
 
 		/* We read from the /dev/lguest device to run the Guest. */
 		readval = pread(lguest_fd, &notify_addr,
@@ -2004,6 +2021,14 @@ int main(int argc, char *argv[])
 	/* We're CPU 0.  In fact, that's the only CPU possible right now. */
 	cpu_id = 0;
 
+	/* Search for the --memfile flag */
+	for(i = 1; i < argc; i++) {
+		if(argv[i][0] == '-' && argv[i][2] == 'm') {
+			strncpy(user_arguments.memfile, argv[i+1], 256);
+			user_arguments.ismemfile = true;
+		}
+	}
+
 	/*
 	 * We need to know how much memory so we can set up the device
 	 * descriptor and memory pages for the devices as we parse the command
@@ -2061,8 +2086,7 @@ int main(int argc, char *argv[])
 			clean = true;
 			break;
 		case 'm':
-			strncpy(user_arguments.memfile, optarg, 256);
-			user_arguments.ismemfile = true;
+			/* ignore this case in this loop */
 			break;
 		default:
 			warnx("Unknown argument %s", argv[optind]);

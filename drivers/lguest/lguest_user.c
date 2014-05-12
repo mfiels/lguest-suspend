@@ -378,9 +378,13 @@ static int initialize(struct file *file, const unsigned long __user *input)
 	/* "struct lguest" contains all we (the Host) know about a Guest. */
 	struct lguest *lg;
 	int err;
-	unsigned long args[5];
+	unsigned long args[7];
 	char snapshot_path[256] = {0};
 	bool clean;
+
+	/* Dummy Holder for lg_data */
+	int lg_register_state; /* TODO: Place Holder value */
+	int lg_data;		   /* TODO: Place holder value */
 
 	/*
 	 * We grab the Big Lguest lock, which protects against multiple
@@ -403,6 +407,20 @@ static int initialize(struct file *file, const unsigned long __user *input)
 
 	copy_from_user(&clean, (bool*)args[4], sizeof(bool));
 	printk("clean load? %s\n", clean ? "TRUE" : "FALSE");
+
+	copy_from_user(&lg_register_state, (int*)args[5], sizeof(int));
+	if(lg_register_state != 0) {
+		// TODO: Handle "A-hsetregs"
+	} else {
+		printk("lg_register_state is 0\n");
+	}
+
+	copy_from_user(&lg_data, (int*)args[6], sizeof(int));
+	if(lg_data != 0) {
+		// TODO: Handle "A-hsetregs"
+	} else {
+		printk("lg_data is 0\n");
+	}
 
 	lg = kzalloc(sizeof(*lg), GFP_KERNEL);
 	if (!lg) {
