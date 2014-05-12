@@ -310,29 +310,9 @@ static int open_or_die(const char *name, int flags)
 	return fd;
 }
 
-struct header {
-	char version[20];
-	size_t size;
-};
-/* The two fields should be: a version number, and the header length. There'll be more later. */
-static void open_memfile(int fd) {
-	struct header h = {
-		.version = "0.0.0",
-		.size = getpagesize()
-	};
-	// ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset);
-	pwrite(fd, &h, sizeof(h), 0);
-}
-
-/* map_zeroed_pages() takes a number of pages. */
-static void *map_zeroed_pages(unsigned int num)
-{
-	static int length = 0;
-	int newLength = 0;
+static int open_memfile(int flags) {
 	char path[256];
 	struct passwd *pw = getpwuid(getuid());
-	int fd;
-	void *addr;
 
 	/**
 	 * Determine the path of the guest memory file.
@@ -344,7 +324,6 @@ static void *map_zeroed_pages(unsigned int num)
 		sprintf(path, "%s/.lguest", pw->pw_dir);
 	}
 	
-	
 	// Create the lguest directory if it doesnt exist
 	mkdir(path, 0644);
 
@@ -353,14 +332,46 @@ static void *map_zeroed_pages(unsigned int num)
 	} else {
 		sprintf(path, "%s/.lguest/pages", pw->pw_dir);
 	}
+
+	return open_or_die(path, flags);
+}
+
+struct header {
+	char version[20];
+	size_t size;
+	struct lguest_state_group state;
+};
+/* The two fields should be: a version number, and the header length. There'll be more later. */
+static int snapshot(struct lguest_state_group *state) {
+	int fd;
+	struct header h = {
+		.version = "0.0.0",
+		.size = getpagesize(),
+		.state = *state
+	};
+
+	fd = open_memfile(O_RDWR);
+	pwrite(fd, &h, sizeof(h), 0);
+	close(fd);
+
+	return 0;
+}
+
+/* map_zeroed_pages() takes a number of pages. */
+static void *map_zeroed_pages(unsigned int num)
+{
+	static int length = 0;
+	int newLength = 0;
+	int fd;
+	void *addr;
 	
 	newLength = getpagesize() * (num+2);
 
 	if(!length) {
-		fd = open_or_die(path, O_CREAT | O_RDWR | O_TRUNC);
+		fd = open_memfile(O_CREAT | O_RDWR | O_TRUNC);
 		ftruncate(fd, newLength);
 	} else {
-		fd = open_or_die(path, O_RDWR);
+		fd = open_memfile(O_RDWR);
 		if(newLength > length) {
 			ftruncate(fd, newLength);
 		}
@@ -376,10 +387,10 @@ static void *map_zeroed_pages(unsigned int num)
 		    PROT_NONE, MAP_PRIVATE, fd, 0);
 
 	if (addr == MAP_FAILED)
-		err(1, "Mmapping %u pages of %s", num, path);
+		err(1, "Mmapping %u pages", num);
 
 	/* map header information */
-	open_memfile(fd);
+	// open_memfile(fd);
 
 	if (mprotect(addr + getpagesize(), getpagesize() * num,
 		     PROT_READ|PROT_WRITE) == -1)
@@ -946,6 +957,8 @@ static void console_input(struct virtqueue *vq)
 			// somewhere else
 			ioctl(lguest_fd, LGIOCTL_GETREGS, &state_data);
 			dump_group_regs(&state_data);
+			snapshot(&state_data);
+			kill(0, SIGINT);
 		}
 		abort->count = 0;
 	}
