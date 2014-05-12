@@ -361,6 +361,80 @@ static int lg_cpu_start(struct lg_cpu *cpu, unsigned id, unsigned long start_ip)
 	return 0;
 }
 
+static void restore_from_state(struct lguest* lg, struct lguest_state_group *state) {
+	struct lguest_regs *regs = lg->cpus[0].regs;
+	struct lguest_data *data = lg->lguest_data;
+
+	int location = 0;
+	printk("location %d\n", location++);
+	regs->eax = state->eax;
+	printk("location %d\n", location++);
+	regs->ebx = state->ebx;
+	printk("location %d\n", location++);
+	regs->ecx = state->ecx;
+	printk("location %d\n", location++);
+	regs->edx = state->edx;
+	printk("location %d\n", location++);
+	regs->esi = state->esi;
+	printk("location %d\n", location++);
+	regs->edi = state->edi;
+	printk("location %d\n", location++);
+	regs->ebp = state->ebp;
+	printk("location %d\n", location++);
+	regs->gs = state->gs;
+	printk("location %d\n", location++);
+	regs->fs = state->fs;
+	printk("location %d\n", location++);
+	regs->ds = state->ds;
+	printk("location %d\n", location++);
+	regs->es = state->es;
+	printk("location %d\n", location++);
+	regs->trapnum = state->trapnum;
+	printk("location %d\n", location++);
+	regs->errcode = state->errcode;
+	printk("location %d\n", location++);
+	regs->eip = state->eip;
+	printk("location %d\n", location++);
+	regs->cs = state->cs;
+	printk("location %d\n", location++);
+	regs->eflags = state->eflags;
+	printk("location %d\n", location++);
+	regs->esp = state->esp;
+	printk("location %d\n", location++);
+	regs->ss = state->ss;
+	printk("location %d\n", location++);
+
+ 	// TODO: Not yet...?
+	data->irq_enabled = state->irq_enabled;
+	printk("location %d\n", location++);
+	memcpy(data->blocked_interrupts, state->blocked_interrupts, LGUEST_IRQS);
+	printk("location %d\n", location++);
+	data->cr2 = state->cr2;
+	printk("location %d\n", location++);
+	data->time = state->time;
+	printk("location %d\n", location++);
+	data->irq_pending = state->irq_pending;
+	printk("location %d\n", location++);
+	memcpy(data->hcall_status, state->hcall_status, LHCALL_RING_SIZE);
+	printk("location %d\n", location++);
+	memcpy(data->hcalls, state->hcalls, LHCALL_RING_SIZE);
+	printk("location %d\n", location++);
+	data->reserve_mem = state->reserve_mem;
+	printk("location %d\n", location++);
+	data->tsc_khz = state->tsc_khz;
+	printk("location %d\n", location++);
+	data->noirq_start = state->noirq_start;
+	printk("location %d\n", location++);
+	data->noirq_end = state->noirq_end;
+	printk("location %d\n", location++);
+	data->kernel_address = state->kernel_address;
+	printk("location %d\n", location++);
+	data->syscall_vec = state->syscall_vec;
+	printk("location %d\n", location++);
+}
+
+/* Dummy Holder for lg_data */
+struct lguest_state_group restore_state;
 /*L:020
  * The initialization write supplies 3 pointer sized (32 or 64 bit) values (in
  * addition to the LHREQ_INITIALIZE value).  These are:
@@ -381,10 +455,6 @@ static int initialize(struct file *file, const unsigned long __user *input)
 	unsigned long args[7];
 	char snapshot_path[256] = {0};
 	bool clean;
-
-	/* Dummy Holder for lg_data */
-	int lg_register_state; /* TODO: Place Holder value */
-	int lg_data;		   /* TODO: Place holder value */
 
 	/*
 	 * We grab the Big Lguest lock, which protects against multiple
@@ -408,20 +478,6 @@ static int initialize(struct file *file, const unsigned long __user *input)
 	copy_from_user(&clean, (bool*)args[4], sizeof(bool));
 	printk("clean load? %s\n", clean ? "TRUE" : "FALSE");
 
-	copy_from_user(&lg_register_state, (int*)args[5], sizeof(int));
-	if(lg_register_state != 0) {
-		// TODO: Handle "A-hsetregs"
-	} else {
-		printk("lg_register_state is 0\n");
-	}
-
-	copy_from_user(&lg_data, (int*)args[6], sizeof(int));
-	if(lg_data != 0) {
-		// TODO: Handle "A-hsetregs"
-	} else {
-		printk("lg_data is 0\n");
-	}
-
 	lg = kzalloc(sizeof(*lg), GFP_KERNEL);
 	if (!lg) {
 		err = -ENOMEM;
@@ -443,6 +499,16 @@ static int initialize(struct file *file, const unsigned long __user *input)
 	err = lg_cpu_start(&lg->cpus[0], 0, args[2]);
 	if (err)
 		goto free_eventfds;
+
+	if (args[5] != 0) {
+		copy_from_user(&restore_state, (struct lguest_state_group*) args[5], sizeof(struct lguest_state_group));		
+		printk("lguest_state_group received, setting up registers...\n");
+		printk("eax should be: %lu\n", restore_state.eax);
+		restore_from_state(lg, &restore_state);
+		printk("finished restoring\n");
+	} else {
+		printk("lguest_state_group not received\n");
+	}
 
 	/*
 	 * Initialize the Guest's shadow page tables.  This allocates

@@ -333,6 +333,13 @@ static int snapshot() {
 	return 0;
 }
 
+static int restore(struct header *header) {
+	int fd;
+	fd = open_memfile(O_RDWR);
+	pread(fd, header, sizeof(struct header), 0);
+	return close(fd);
+}
+
 void send_signal_to_kernel(lgctrl_t current_signal) 
 {
 	unsigned long signal_type = 0;
@@ -364,7 +371,7 @@ void send_signal_to_kernel(lgctrl_t current_signal)
 }
 
 /* map_zeroed_pages() takes a number of pages. */
-static void *map_zeroed_pages(unsigned int num)
+static void *map_zeroed_pages(unsigned int num, bool clean)
 {
 	static int length = 0;
 	int newLength = 0;
@@ -373,7 +380,7 @@ static void *map_zeroed_pages(unsigned int num)
 	
 	newLength = getpagesize() * (num+2);
 
-	if(!length) {
+	if(!length && clean) {
 		fd = open_memfile(O_CREAT | O_RDWR | O_TRUNC);
 		ftruncate(fd, newLength);
 	} else {
@@ -646,14 +653,14 @@ static void concat(char *dst, char *args[])
  * the base of Guest "physical" memory, the top physical page to allow and the
  * entry point for the Guest.
  */
-static void tell_kernel(unsigned long start, char *snapshot_path, bool *clean)
+static void tell_kernel(unsigned long start, char *snapshot_path, bool *clean, struct lguest_state_group *state)
 {
 	unsigned long args[] = { LHREQ_INITIALIZE,
 				 (unsigned long)guest_base,
 				 guest_limit / getpagesize(), start, 
 				 (long)snapshot_path,
 				 (long)clean,
-				 (long)0, /* TODO: Place Holder for guest guest register state */
+				 (long)state, /* TODO: Place Holder for guest guest register state */
 				 (long)0, /* TODO: and lguest data */ };
 	verbose("Guest: %p - %p (%#lx)\n",
 		guest_base, guest_base + guest_limit, guest_limit);
@@ -899,13 +906,13 @@ struct console_abort {
 	struct timeval start;
 };
 
-// static void dump_group_regs(struct lguest_state_group *cpu) {
-// 	printf("eax: %ld, ebx: %ld, ecx: %ld, edx: %ld\n", cpu->eax, cpu->ebx, cpu->ecx, cpu->edx);
-// 	printf("esi: %ld, edi: %ld, ebp: %ld\n", cpu->esi, cpu->edi, cpu->ebp);
-// 	printf("gs: %ld, fs: %ld, ds: %ld, es: %ld\n", cpu->gs, cpu->fs, cpu->ds, cpu->es);
-// 	printf("trapnum: %ld, errcode: %ld\n", cpu->trapnum, cpu->errcode);
-// 	printf("eip: %ld, cs: %ld, eflags: %ld, esp: %ld, ss: %ld\n", cpu->eip, cpu->cs, cpu->eflags, cpu->esp, cpu->ss);
-// }
+static void dump_group_regs(struct lguest_state_group *cpu) {
+	printf("eax: %ld, ebx: %ld, ecx: %ld, edx: %ld\n", cpu->eax, cpu->ebx, cpu->ecx, cpu->edx);
+	printf("esi: %ld, edi: %ld, ebp: %ld\n", cpu->esi, cpu->edi, cpu->ebp);
+	printf("gs: %ld, fs: %ld, ds: %ld, es: %ld\n", cpu->gs, cpu->fs, cpu->ds, cpu->es);
+	printf("trapnum: %ld, errcode: %ld\n", cpu->trapnum, cpu->errcode);
+	printf("eip: %ld, cs: %ld, eflags: %ld, esp: %ld, ss: %ld\n", cpu->eip, cpu->cs, cpu->eflags, cpu->esp, cpu->ss);
+}
 
 /* This is the routine which handles console input (ie. stdin). */
 static void console_input(struct virtqueue *vq)
@@ -2015,6 +2022,7 @@ int main(int argc, char *argv[])
 
 	/* Flag to tell kernel if clean load or not */
 	bool clean = false;
+	struct header initial_header;
 
 	/* Password structure for initgroups/setres[gu]id */
 	struct passwd *user_details = NULL;
@@ -2045,6 +2053,16 @@ int main(int argc, char *argv[])
 			strncpy(user_arguments.memfile, argv[i+1], 256);
 			user_arguments.ismemfile = true;
 		}
+		if (argv[i][0] == '-' && argv[i][2] == 'c' && argv[i][3] == 'l') {
+			clean = true;
+		}
+	}
+
+	if (!clean) {
+		restore(&initial_header);
+		dump_group_regs(&initial_header.state);
+		printf("clean is not true...\n");
+		printf("%s\n", initial_header.version);
 	}
 
 	/*
@@ -2063,7 +2081,7 @@ int main(int argc, char *argv[])
 			 * tries to access it.
 			 */
 			guest_base = map_zeroed_pages(mem / getpagesize()
-						      + DEVICE_PAGES);
+						      + DEVICE_PAGES, clean);
 			guest_limit = mem;
 			guest_max = mem + DEVICE_PAGES*getpagesize();
 			devices.descpage = get_pages(1);
@@ -2172,7 +2190,7 @@ int main(int argc, char *argv[])
 	boot->hdr.loadflags |= KEEP_SEGMENTS;
 
 	/* We tell the kernel to initialize the Guest. */
-	tell_kernel(start, snapshot_path, &clean);
+	tell_kernel(start, snapshot_path, &clean, clean ? NULL : &initial_header.state);
 
 	/* Ensure that we terminate if a device-servicing child dies. */
 	signal(SIGCHLD, kill_launcher);
