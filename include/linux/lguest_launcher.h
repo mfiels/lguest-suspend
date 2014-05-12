@@ -107,8 +107,7 @@ struct lguest_state_group {
 	unsigned long ss;
 };
 
-#define LGIOCTL_KILL		1
-#define LGIOCTL_GETREGS 2
+#define LGIOCTL_GETREGS	1
 
 /*
  * The alignment to use between consumer and producer parts of vring.

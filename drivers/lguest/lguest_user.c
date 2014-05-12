@@ -289,18 +289,14 @@ static void lg_convert_state(struct lguest *lg, struct lguest_state_group *state
 struct lguest_state_group lg_state_data;
 static long lg_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
 	struct lguest *lg = filp->private_data;
-	struct lg_cpu *cpu = &lg->cpus[0];
-
-	lg_convert_state(lg, &lg_state_data);
 
 	switch (cmd) {
-		case LGIOCTL_KILL:
-			kill_guest(cpu, "guest killed through ioctl");
-			return 0;
-		// case LGIOCTL_GETREGS:
-		// 	copy_to_user((char *) arg, (char *) (&lg_state_data), sizeof(struct lguest_state_group));
-		// 	return (long) sizeof(struct lguest_state_group);
+		case LGIOCTL_GETREGS:
+			lg_convert_state(lg, &lg_state_data);
+			copy_to_user((char *) arg, (char *) (&lg_state_data), sizeof(struct lguest_state_group));
+			return (long) sizeof(struct lguest_state_group);
 	}
+	
 	return -ENOTTY;
 }
 

@@ -859,6 +859,14 @@ struct console_abort {
 	struct timeval start;
 };
 
+// static void dump_group_regs(struct lguest_state_group *cpu) {
+// 	printf("eax: %ld, ebx: %ld, ecx: %ld, edx: %ld\n", cpu->eax, cpu->ebx, cpu->ecx, cpu->edx);
+// 	printf("esi: %ld, edi: %ld, ebp: %ld\n", cpu->esi, cpu->edi, cpu->ebp);
+// 	printf("gs: %ld, fs: %ld, ds: %ld, es: %ld\n", cpu->gs, cpu->fs, cpu->ds, cpu->es);
+// 	printf("trapnum: %ld, errcode: %ld\n", cpu->trapnum, cpu->errcode);
+// 	printf("eip: %ld, cs: %ld, eflags: %ld, esp: %ld, ss: %ld\n", cpu->eip, cpu->cs, cpu->eflags, cpu->esp, cpu->ss);
+// }
+
 /* This is the routine which handles console input (ie. stdin). */
 static void console_input(struct virtqueue *vq)
 {
@@ -910,10 +918,10 @@ static void console_input(struct virtqueue *vq)
 		gettimeofday(&now, NULL);
 		/* Kill all Launcher processes with SIGINT, like normal ^C */
 		if (now.tv_sec <= abort->start.tv_sec+1) {
-			// kill(0, SIGINT);
-			ioctl(lguest_fd, LGIOCTL_KILL);
-			// ioctl(lguest_fd, LGIOCTL_GETREGS, &state_data);
-			// printf("The value of eax is: %lu\n", state_data.eax);
+			// TODO: This is how we can get all snapshot info from the kernel module, need to do this
+			// somewhere else
+			ioctl(lguest_fd, LGIOCTL_GETREGS, &state_data);
+			// dump_group_regs(&state_data);
 		}
 		abort->count = 0;
 	}
