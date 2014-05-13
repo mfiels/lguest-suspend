@@ -204,7 +204,6 @@ static ssize_t read(struct file *file, char __user *user, size_t size,loff_t*o)
 	struct lg_cpu *cpu;
 	unsigned int cpu_id = *o;
 
-
 	/* You must write LHREQ_INITIALIZE first! */
 	if (!lg)
 		return -EINVAL;
@@ -243,6 +242,8 @@ static ssize_t read(struct file *file, char __user *user, size_t size,loff_t*o)
 
 	/* Initialize the suspend flags */
 	cpu->suspended = 0;
+
+	printk("running the guest...\n");
 
 	/* Run the Guest until something interesting happens. */
 	return run_guest(cpu, (unsigned long __user *)user);
@@ -364,73 +365,52 @@ static int lg_cpu_start(struct lg_cpu *cpu, unsigned id, unsigned long start_ip)
 static void restore_from_state(struct lguest* lg, struct lguest_state_group *state) {
 	struct lguest_regs *regs = lg->cpus[0].regs;
 	struct lguest_data *data = lg->lguest_data;
+	struct hcall_args init_hcall;
 
-	int location = 0;
-	printk("location %d\n", location++);
 	regs->eax = state->eax;
-	printk("location %d\n", location++);
 	regs->ebx = state->ebx;
-	printk("location %d\n", location++);
 	regs->ecx = state->ecx;
-	printk("location %d\n", location++);
 	regs->edx = state->edx;
-	printk("location %d\n", location++);
 	regs->esi = state->esi;
-	printk("location %d\n", location++);
 	regs->edi = state->edi;
-	printk("location %d\n", location++);
 	regs->ebp = state->ebp;
-	printk("location %d\n", location++);
 	regs->gs = state->gs;
-	printk("location %d\n", location++);
 	regs->fs = state->fs;
-	printk("location %d\n", location++);
 	regs->ds = state->ds;
-	printk("location %d\n", location++);
 	regs->es = state->es;
-	printk("location %d\n", location++);
 	regs->trapnum = state->trapnum;
-	printk("location %d\n", location++);
 	regs->errcode = state->errcode;
-	printk("location %d\n", location++);
 	regs->eip = state->eip;
-	printk("location %d\n", location++);
 	regs->cs = state->cs;
-	printk("location %d\n", location++);
 	regs->eflags = state->eflags;
-	printk("location %d\n", location++);
 	regs->esp = state->esp;
-	printk("location %d\n", location++);
 	regs->ss = state->ss;
-	printk("location %d\n", location++);
 
- 	// TODO: Not yet...?
+ 	if (!lg->lguest_data) {
+ 		init_hcall.arg0 = LHCALL_LGUEST_INIT;
+ 		init_hcall.arg1 = 25743360;
+ 		init_hcall.arg4 = 999999;
+ 		lg->cpus[0].hcall = &init_hcall;
+ 		initialize_lguest_data(&lg->cpus[0]);
+ 		data = lg->lguest_data;
+ 		lg->cpus[0].hcall = NULL;
+ 	}
+
 	data->irq_enabled = state->irq_enabled;
-	printk("location %d\n", location++);
 	memcpy(data->blocked_interrupts, state->blocked_interrupts, LGUEST_IRQS);
-	printk("location %d\n", location++);
 	data->cr2 = state->cr2;
-	printk("location %d\n", location++);
 	data->time = state->time;
-	printk("location %d\n", location++);
 	data->irq_pending = state->irq_pending;
-	printk("location %d\n", location++);
 	memcpy(data->hcall_status, state->hcall_status, LHCALL_RING_SIZE);
-	printk("location %d\n", location++);
 	memcpy(data->hcalls, state->hcalls, LHCALL_RING_SIZE);
-	printk("location %d\n", location++);
 	data->reserve_mem = state->reserve_mem;
-	printk("location %d\n", location++);
 	data->tsc_khz = state->tsc_khz;
-	printk("location %d\n", location++);
 	data->noirq_start = state->noirq_start;
-	printk("location %d\n", location++);
 	data->noirq_end = state->noirq_end;
-	printk("location %d\n", location++);
 	data->kernel_address = state->kernel_address;
-	printk("location %d\n", location++);
 	data->syscall_vec = state->syscall_vec;
-	printk("location %d\n", location++);
+
+	lg->dead = 0;
 }
 
 /* Dummy Holder for lg_data */

@@ -334,15 +334,19 @@ bool deliver_trap(struct lg_cpu *cpu, unsigned int num)
 	 * Trap numbers are always 8 bit, but we set an impossible trap number
 	 * for traps inside the Switcher, so check that here.
 	 */
-	if (num >= ARRAY_SIZE(cpu->arch.idt))
+	if (num >= ARRAY_SIZE(cpu->arch.idt)) {
+		printk("impossible trap number\n");
 		return false;
+	}
 
 	/*
 	 * Early on the Guest hasn't set the IDT entries (or maybe it put a
 	 * bogus one in): if we fail here, the Guest will be killed.
 	 */
-	if (!idt_present(cpu->arch.idt[num].a, cpu->arch.idt[num].b))
+	if (!idt_present(cpu->arch.idt[num].a, cpu->arch.idt[num].b)) {
+		printk("no idt present\n");
 		return false;
+	}
 	set_guest_interrupt(cpu, cpu->arch.idt[num].a,
 			    cpu->arch.idt[num].b, has_err(num));
 	return true;

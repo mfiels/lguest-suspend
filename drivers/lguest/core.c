@@ -83,7 +83,7 @@ int file_write(struct file* file, unsigned long long offset, unsigned char* data
     return ret;
 }
 
-void dump_cpu_regs(struct lg_cpu *cpu) {
+static void dump_cpu_regs(struct lg_cpu *cpu) {
 	struct lguest_regs *regs = cpu->regs;
 
 	printk("eax: %ld, ebx: %ld, ecx: %ld, edx: %ld\n", regs->eax, regs->ebx, regs->ecx, regs->edx);

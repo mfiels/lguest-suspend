@@ -122,6 +122,8 @@ struct lguest {
 
 	/* Dead? */
 	const char *dead;
+
+	struct lguest_state_group restore_state;
 };
 
 extern struct mutex lguest_lock;
@@ -240,6 +242,7 @@ int file_write(struct file* file, unsigned long long offset, unsigned char* data
 void write_shadow_page_table(struct lg_cpu *cpu);
 void read_shadow_page_table(struct lg_cpu *cpu);
 void remap_physical_pages(struct lg_cpu *cpu);
+void initialize_lguest_data(struct lg_cpu *cpu);
 // lg_cpu serialization operations
 void flatten_lg_cpu(struct lg_cpu *cpu);
 void load_lg_cpu(struct lg_cpu *cpu);

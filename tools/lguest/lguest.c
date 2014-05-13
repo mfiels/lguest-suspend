@@ -203,6 +203,14 @@ static struct termios orig_term;
 #define le32_to_cpu(v32) (v32)
 #define le64_to_cpu(v64) (v64)
 
+static void dump_group_regs(struct lguest_state_group *cpu) {
+	printf("eax: %ld, ebx: %ld, ecx: %ld, edx: %ld\n", cpu->eax, cpu->ebx, cpu->ecx, cpu->edx);
+	printf("esi: %ld, edi: %ld, ebp: %ld\n", cpu->esi, cpu->edi, cpu->ebp);
+	printf("gs: %ld, fs: %ld, ds: %ld, es: %ld\n", cpu->gs, cpu->fs, cpu->ds, cpu->es);
+	printf("trapnum: %ld, errcode: %ld\n", cpu->trapnum, cpu->errcode);
+	printf("eip: %#lx, cs: %#lx, eflags: %ld, esp: %#lx, ss: %ld\n", cpu->eip, cpu->cs, cpu->eflags, cpu->esp, cpu->ss);
+}
+
 /* Is this iovec empty? */
 static bool iov_empty(const struct iovec iov[], unsigned int num_iov)
 {
@@ -319,6 +327,7 @@ static int snapshot() {
 	struct header hdr;
 
 	ioctl(lguest_fd, LGIOCTL_GETREGS, &hdr.state);
+	dump_group_regs(&hdr.state);
 
 	strcpy(hdr.version, "0.0.0");
 	hdr.size = getpagesize();
@@ -906,14 +915,6 @@ struct console_abort {
 	struct timeval start;
 };
 
-static void dump_group_regs(struct lguest_state_group *cpu) {
-	printf("eax: %ld, ebx: %ld, ecx: %ld, edx: %ld\n", cpu->eax, cpu->ebx, cpu->ecx, cpu->edx);
-	printf("esi: %ld, edi: %ld, ebp: %ld\n", cpu->esi, cpu->edi, cpu->ebp);
-	printf("gs: %ld, fs: %ld, ds: %ld, es: %ld\n", cpu->gs, cpu->fs, cpu->ds, cpu->es);
-	printf("trapnum: %ld, errcode: %ld\n", cpu->trapnum, cpu->errcode);
-	printf("eip: %ld, cs: %ld, eflags: %ld, esp: %ld, ss: %ld\n", cpu->eip, cpu->cs, cpu->eflags, cpu->esp, cpu->ss);
-}
-
 /* This is the routine which handles console input (ie. stdin). */
 static void console_input(struct virtqueue *vq)
 {
@@ -1267,6 +1268,7 @@ static void handle_output(unsigned long addr)
 	 */
 	if (addr >= guest_limit)
 		errx(1, "Bad NOTIFY %#lx", addr);
+	printf("NOTIFY %#lx %#lx\n", addr, guest_limit);
 
 	write(STDOUT_FILENO, from_guest_phys(addr),
 	      strnlen(from_guest_phys(addr), guest_limit - addr));
@@ -1951,6 +1953,7 @@ static void __attribute__((noreturn)) run_guest(void)
 		int readval;
 
 		/* We read from the /dev/lguest device to run the Guest. */
+		printf("running the guest...\n");
 		readval = pread(lguest_fd, &notify_addr,
 				sizeof(notify_addr), cpu_id);
 
