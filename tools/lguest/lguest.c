@@ -205,7 +205,7 @@ static struct termios orig_term;
 
 static void dump_group_regs(struct lguest_state_group *cpu) {
 	printf("eax: %ld, ebx: %ld, ecx: %ld, edx: %ld\n", cpu->eax, cpu->ebx, cpu->ecx, cpu->edx);
-	printf("esi: %ld, edi: %ld, ebp: %ld\n", cpu->esi, cpu->edi, cpu->ebp);
+	printf("esi: %ld, edi: %ld, ebp: %lu\n", cpu->esi, cpu->edi, cpu->ebp);
 	printf("gs: %ld, fs: %ld, ds: %ld, es: %ld\n", cpu->gs, cpu->fs, cpu->ds, cpu->es);
 	printf("trapnum: %ld, errcode: %ld\n", cpu->trapnum, cpu->errcode);
 	printf("eip: %#lx, cs: %#lx, eflags: %ld, esp: %#lx, ss: %ld\n", cpu->eip, cpu->cs, cpu->eflags, cpu->esp, cpu->ss);
@@ -334,7 +334,12 @@ static int snapshot() {
 
 	fd = open_memfile(O_RDWR);
 	pwrite(fd, &hdr, sizeof(hdr), 0);
+	
 	close(fd);
+
+	/* Fix Terminal on exit */
+	if (orig_term.c_lflag & (ISIG|ICANON|ECHO))
+		tcsetattr(STDIN_FILENO, TCSANOW, &orig_term);
 
 	printf("Snapshot taken, exiting...\n");
 	kill(0, SIGINT);
@@ -2130,6 +2135,7 @@ int main(int argc, char *argv[])
 		default:
 			warnx("Unknown argument %s", argv[optind]);
 			usage();
+			break;
 		}
 	}
 	/*
