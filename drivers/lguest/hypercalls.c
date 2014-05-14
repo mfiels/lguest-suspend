@@ -264,6 +264,7 @@ void do_hypercalls(struct lg_cpu *cpu)
 {
 	/* Not initialized yet?  This hypercall must do it. */
 	if (unlikely(!cpu->lg->lguest_data)) {
+		printk("Setup lguest data\n");
 		/* Set up the "struct lguest_data" */
 		initialize_lguest_data(cpu);
 		/* Hcall is done. */

@@ -243,7 +243,7 @@ static ssize_t read(struct file *file, char __user *user, size_t size,loff_t*o)
 	/* Initialize the suspend flags */
 	cpu->suspended = 0;
 
-	printk("running the guest...\n");
+	// printk("running the guest...\n");
 
 	/* Run the Guest until something interesting happens. */
 	return run_guest(cpu, (unsigned long __user *)user);

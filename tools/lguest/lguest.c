@@ -1958,7 +1958,7 @@ static void __attribute__((noreturn)) run_guest(void)
 		int readval;
 
 		/* We read from the /dev/lguest device to run the Guest. */
-		printf("running the guest...\n");
+		// printf("running the guest...\n");
 		readval = pread(lguest_fd, &notify_addr,
 				sizeof(notify_addr), cpu_id);
 
