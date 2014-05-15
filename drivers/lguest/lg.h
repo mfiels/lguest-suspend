@@ -122,8 +122,6 @@ struct lguest {
 
 	/* Dead? */
 	const char *dead;
-
-	struct lguest_state_group restore_state;
 };
 
 extern struct mutex lguest_lock;

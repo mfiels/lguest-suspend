@@ -243,15 +243,17 @@ static ssize_t read(struct file *file, char __user *user, size_t size,loff_t*o)
 	/* Initialize the suspend flags */
 	cpu->suspended = 0;
 
-	printk("running the guest...\n");
-
 	/* Run the Guest until something interesting happens. */
 	return run_guest(cpu, (unsigned long __user *)user);
 }
 
 static void lg_convert_state(struct lguest *lg, struct lguest_state_group *state) {
+	// int i;
+	// struct desc_struct *gdts;
+	// struct desc_struct *idts;
 	struct lguest_regs *regs = lg->cpus[0].regs;
 	struct lguest_data *data = lg->lguest_data;
+	struct lg_cpu *cpu = &lg->cpus[0];
 
 	state->eax = regs->eax;
 	state->ebx = regs->ebx;
@@ -272,19 +274,10 @@ static void lg_convert_state(struct lguest *lg, struct lguest_state_group *state
 	state->esp = regs->esp;
 	state->ss = regs->ss;
 
-	state->irq_enabled = data->irq_enabled;
-	memcpy(state->blocked_interrupts, data->blocked_interrupts, LGUEST_IRQS);
-	state->cr2 = data->cr2;
-	state->time = data->time;
-	state->irq_pending = data->irq_pending;
-	memcpy(state->hcall_status, data->hcall_status, LHCALL_RING_SIZE);
-	memcpy(state->hcalls, data->hcalls, LHCALL_RING_SIZE);
-	state->reserve_mem = data->reserve_mem;
-	state->tsc_khz = data->tsc_khz;
-	state->noirq_start = data->noirq_start;
-	state->noirq_end = data->noirq_end;
-	state->kernel_address = data->kernel_address;
-	state->syscall_vec = data->syscall_vec;
+	state->data_address = (unsigned long) data;
+
+	memcpy(state->gdt, cpu->arch.gdt, 32 * sizeof(struct desc_struct));
+	memcpy(state->idt, cpu->arch.idt, 256 * sizeof(struct desc_struct));
 }
 
 struct lguest_state_group lg_state_data;
@@ -364,8 +357,9 @@ static int lg_cpu_start(struct lg_cpu *cpu, unsigned id, unsigned long start_ip)
 
 static void restore_from_state(struct lguest* lg, struct lguest_state_group *state) {
 	struct lguest_regs *regs = lg->cpus[0].regs;
-	struct lguest_data *data = lg->lguest_data;
-	struct hcall_args init_hcall;
+	struct lg_cpu *cpu = &lg->cpus[0];
+	// struct lguest_data *data = lg->lguest_data;
+	// struct hcall_args init_hcall;
 
 	regs->eax = state->eax;
 	regs->ebx = state->ebx;
@@ -386,29 +380,18 @@ static void restore_from_state(struct lguest* lg, struct lguest_state_group *sta
 	regs->esp = state->esp;
 	regs->ss = state->ss;
 
- 	if (!lg->lguest_data) {
- 		init_hcall.arg0 = LHCALL_LGUEST_INIT;
- 		init_hcall.arg1 = 25743360;
- 		init_hcall.arg4 = 999999;
- 		lg->cpus[0].hcall = &init_hcall;
- 		initialize_lguest_data(&lg->cpus[0]);
- 		data = lg->lguest_data;
- 		lg->cpus[0].hcall = NULL;
- 	}
+	lg->lguest_data = (struct lguest_data *) state->data_address;
 
-	data->irq_enabled = state->irq_enabled;
-	memcpy(data->blocked_interrupts, state->blocked_interrupts, LGUEST_IRQS);
-	data->cr2 = state->cr2;
-	data->time = state->time;
-	data->irq_pending = state->irq_pending;
-	memcpy(data->hcall_status, state->hcall_status, LHCALL_RING_SIZE);
-	memcpy(data->hcalls, state->hcalls, LHCALL_RING_SIZE);
-	data->reserve_mem = state->reserve_mem;
-	data->tsc_khz = state->tsc_khz;
-	data->noirq_start = state->noirq_start;
-	data->noirq_end = state->noirq_end;
-	data->kernel_address = state->kernel_address;
-	data->syscall_vec = state->syscall_vec;
+	// regs->eflags |= 0x202;
+	// regs->cs |= GUEST_PL;
+	// regs->ss |= GUEST_PL;
+	// regs->ds |= GUEST_PL;
+	// regs->gs |= GUEST_PL;
+	// regs->fs |= GUEST_PL;
+	// regs->es |= GUEST_PL;
+
+	memcpy(cpu->arch.gdt, state->gdt, 32 * sizeof(struct desc_struct));
+	memcpy(cpu->arch.idt, state->idt, 256 * sizeof(struct desc_struct));
 
 	lg->dead = 0;
 }
