@@ -79,20 +79,7 @@ struct hcall_args {
 
 struct lguest_state_group {
 	// Data
-	unsigned int irq_enabled;
-
-	unsigned long blocked_interrupts[32];
-
-	unsigned long cr2;
-	struct timespec time;
-	int irq_pending;
-	u8 hcall_status[64];
-	struct hcall_args hcalls[64];
-	unsigned long reserve_mem;
-	u32 tsc_khz;
-	unsigned long noirq_start, noirq_end;	
-	unsigned long kernel_address;
-	unsigned int syscall_vec;
+	unsigned long data_address;
 	
 	// Registers
 	unsigned long eax, ebx, ecx, edx;
@@ -105,6 +92,10 @@ struct lguest_state_group {
 	unsigned long eflags;
 	unsigned long esp;
 	unsigned long ss;
+
+	// GDT IDT
+	unsigned int gdt[32][2];
+	unsigned int idt[256][2];
 };
 
 #define LGIOCTL_GETREGS	1

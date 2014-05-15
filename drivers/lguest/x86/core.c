@@ -400,6 +400,7 @@ void lguest_arch_handle_trap(struct lg_cpu *cpu)
 		    put_user(cpu->arch.last_pagefault,
 			     &cpu->lg->lguest_data->cr2))
 			kill_guest(cpu, "Writing cr2");
+		printk("lguest data %p\n", cpu->lg->lguest_data);
 		break;
 	case 7: /* We've intercepted a Device Not Available fault. */
 		/*
@@ -650,6 +651,7 @@ int lguest_arch_init_hypercalls(struct lg_cpu *cpu)
 	 * optimizations.
 	 */
 	cpu->lg->lguest_data = cpu->lg->mem_base + cpu->hcall->arg1;
+	printk("lguest data now @ %p\n", cpu->lg->lguest_data);
 	printk("magic argument is %lu\n", cpu->hcall->arg1);
 
 	/*

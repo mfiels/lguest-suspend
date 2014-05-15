@@ -41,7 +41,6 @@
 #include <signal.h>
 #include <pwd.h>
 #include <grp.h>
-
 #include "lguest_control.h"
 
 /*L:110
@@ -205,10 +204,10 @@ static struct termios orig_term;
 
 static void dump_group_regs(struct lguest_state_group *cpu) {
 	printf("eax: %ld, ebx: %ld, ecx: %ld, edx: %ld\n", cpu->eax, cpu->ebx, cpu->ecx, cpu->edx);
-	printf("esi: %ld, edi: %ld, ebp: %lu\n", cpu->esi, cpu->edi, cpu->ebp);
-	printf("gs: %ld, fs: %ld, ds: %ld, es: %ld\n", cpu->gs, cpu->fs, cpu->ds, cpu->es);
+	printf("esi: %ld, edi: %ld, ebp: %#lx\n", cpu->esi, cpu->edi, cpu->ebp);
+	printf("gs: %#lx, fs: %#lx, ds: %#lx, es: %#lx\n", cpu->gs, cpu->fs, cpu->ds, cpu->es);
 	printf("trapnum: %ld, errcode: %ld\n", cpu->trapnum, cpu->errcode);
-	printf("eip: %#lx, cs: %#lx, eflags: %ld, esp: %#lx, ss: %ld\n", cpu->eip, cpu->cs, cpu->eflags, cpu->esp, cpu->ss);
+	printf("eip: %#lx, cs: %#lx, eflags: %#lx, esp: %#lx, ss: %#lx\n", cpu->eip, cpu->cs, cpu->eflags, cpu->esp, cpu->ss);
 }
 
 /* Is this iovec empty? */
