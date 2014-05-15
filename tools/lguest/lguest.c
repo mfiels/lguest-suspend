@@ -390,8 +390,9 @@ static void *map_zeroed_pages(unsigned int num, bool clean)
 	int newLength = 0;
 	int fd;
 	void *addr;
+	int header_pages = 2
 	
-	newLength = getpagesize() * (num+2);
+	newLength = getpagesize() * (num + header_pages + 1);
 
 	if(!length && clean) {
 		fd = open_memfile(O_CREAT | O_RDWR | O_TRUNC);
@@ -418,7 +419,7 @@ static void *map_zeroed_pages(unsigned int num, bool clean)
 	/* map header information */
 	// open_memfile(fd);
 
-	if (mprotect(addr + getpagesize(), getpagesize() * num,
+	if (mprotect(addr + (getpagesize() * header_pages), getpagesize() * num,
 		     PROT_READ|PROT_WRITE) == -1)
 		err(1, "mprotect rw %u pages failed", num);
 
@@ -429,7 +430,7 @@ static void *map_zeroed_pages(unsigned int num, bool clean)
 	close(fd);
 
 	/* Return address after PROT_NONE page */
-	return addr + getpagesize();
+	return addr + (getpagesize() * header_pages);
 }
 
 /* Get some more pages for a device. */
