@@ -390,9 +390,9 @@ static void *map_zeroed_pages(unsigned int num, bool clean)
 	int newLength = 0;
 	int fd;
 	void *addr;
-	int header_pages = 2
+	int header_pages = 2;
 	
-	newLength = getpagesize() * (num + header_pages + 1);
+	newLength = getpagesize() * (num + header_pages + 1 /* 1 page for overflow guard */);
 
 	if(!length && clean) {
 		fd = open_memfile(O_CREAT | O_RDWR | O_TRUNC);
