@@ -123,7 +123,7 @@ static void do_hcall(struct lg_cpu *cpu, struct hcall_args *args)
 	default:
 		/* It should be an architecture-specific hypercall. */
 		if (lguest_arch_do_hcall(cpu, args))
-			kill_guest(cpu, "Bad hypercall %li\n", args->arg0);
+			kill_guest(cpu, "Bad hypercall %li in hex: %#lx\n", args->arg0, args->arg0);
 	}
 }
 
@@ -198,7 +198,7 @@ static void do_async_hcalls(struct lg_cpu *cpu)
  * Last of all, we look at what happens first of all.  The very first time the
  * Guest makes a hypercall, we end up here to set things up:
  */
-static void initialize(struct lg_cpu *cpu)
+void initialize_lguest_data(struct lg_cpu *cpu)
 {
 	/*
 	 * You can't do anything until you're initialized.  The Guest knows the
@@ -209,16 +209,18 @@ static void initialize(struct lg_cpu *cpu)
 		return;
 	}
 
-	if (lguest_arch_init_hypercalls(cpu))
+	if (lguest_arch_init_hypercalls(cpu)) {
 		kill_guest(cpu, "bad guest page %p", cpu->lg->lguest_data);
+	}
 
 	/*
 	 * The Guest tells us where we're not to deliver interrupts by putting
 	 * the range of addresses into "struct lguest_data".
 	 */
 	if (get_user(cpu->lg->noirq_start, &cpu->lg->lguest_data->noirq_start)
-	    || get_user(cpu->lg->noirq_end, &cpu->lg->lguest_data->noirq_end))
+	    || get_user(cpu->lg->noirq_end, &cpu->lg->lguest_data->noirq_end)) {
 		kill_guest(cpu, "bad guest page %p", cpu->lg->lguest_data);
+	}
 
 	/*
 	 * We write the current time into the Guest's data page once so it can
@@ -235,7 +237,8 @@ static void initialize(struct lg_cpu *cpu)
 	 * fault, but the old page might be (read-only) in the Guest
 	 * pagetable.
 	 */
-	guest_pagetable_clear_all(cpu);
+	if (cpu->hcall->arg4 != 999999)
+		guest_pagetable_clear_all(cpu);
 }
 /*:*/
 
@@ -261,8 +264,9 @@ void do_hypercalls(struct lg_cpu *cpu)
 {
 	/* Not initialized yet?  This hypercall must do it. */
 	if (unlikely(!cpu->lg->lguest_data)) {
+		printk("Setup lguest data\n");
 		/* Set up the "struct lguest_data" */
-		initialize(cpu);
+		initialize_lguest_data(cpu);
 		/* Hcall is done. */
 		cpu->hcall = NULL;
 		return;

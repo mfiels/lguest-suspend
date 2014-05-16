@@ -41,7 +41,6 @@
 #include <signal.h>
 #include <pwd.h>
 #include <grp.h>
-
 #include "lguest_control.h"
 
 /*L:110
@@ -168,6 +167,12 @@ struct virtqueue {
 	pid_t thread;
 };
 
+/* Helper struct for keeping track of user arguments */
+static struct user_arguments {
+	bool ismemfile;
+	char memfile[256];
+} user_arguments;
+
 /* Remember the arguments to the program so we can "reboot" */
 static char **main_args;
 
@@ -197,32 +202,12 @@ static struct termios orig_term;
 #define le32_to_cpu(v32) (v32)
 #define le64_to_cpu(v64) (v64)
 
-void send_signal_to_kernel(lgctrl_t current_signal) 
-{
-	unsigned long signal_type = 0;
-
-	switch (current_signal) {
-		case LGCTRL_SUSPEND:
-			signal_type = LHREQ_SUSPEND;
-			break;
-		case LGCTRL_RESUME:
-			signal_type = LHREQ_RESUME;
-			break;
-		case LGCTRL_SNAPSHOT:
-			signal_type = LHREQ_SNAPSHOT;
-			break;
-		case LGCTRL_ROLLBACK:
-			signal_type = LHREQ_ROLLBACK;
-		default:
-			break;
-	}
-
-	if (signal_type == 0) {
-		return;
-	}
-
-	unsigned long buf[] = { signal_type };
-	write(lguest_fd, buf, sizeof(buf));
+static void dump_group_regs(struct lguest_state_group *cpu) {
+	printf("eax: %ld, ebx: %ld, ecx: %ld, edx: %ld\n", cpu->eax, cpu->ebx, cpu->ecx, cpu->edx);
+	printf("esi: %ld, edi: %ld, ebp: %#lx\n", cpu->esi, cpu->edi, cpu->ebp);
+	printf("gs: %#lx, fs: %#lx, ds: %#lx, es: %#lx\n", cpu->gs, cpu->fs, cpu->ds, cpu->es);
+	printf("trapnum: %ld, errcode: %ld\n", cpu->trapnum, cpu->errcode);
+	printf("eip: %#lx, cs: %#lx, eflags: %#lx, esp: %#lx, ss: %#lx\n", cpu->eip, cpu->cs, cpu->eflags, cpu->esp, cpu->ss);
 }
 
 /* Is this iovec empty? */
@@ -304,24 +289,137 @@ static int open_or_die(const char *name, int flags)
 	return fd;
 }
 
-/* map_zeroed_pages() takes a number of pages. */
-static void *map_zeroed_pages(unsigned int num)
+static int open_memfile(int flags) {
+	char path[256];
+	struct passwd *pw = getpwuid(getuid());
+
+	/**
+	 * Determine the path of the guest memory file.
+	 * $HOME/.lguest/
+	 */
+	if(user_arguments.ismemfile) {
+		sprintf(path, "%s", user_arguments.memfile);
+	} else {
+		sprintf(path, "%s/.lguest", pw->pw_dir);
+	}
+	
+	// Create the lguest directory if it doesnt exist
+	mkdir(path, 0644);
+
+	if(user_arguments.ismemfile) {
+		sprintf(path, "%s/pages", user_arguments.memfile);
+	} else {
+		sprintf(path, "%s/.lguest/pages", pw->pw_dir);
+	}
+
+	return open_or_die(path, flags);
+}
+
+struct header {
+	char version[20];
+	size_t size;
+	struct lguest_state_group state;
+};
+/* The two fields should be: a version number, and the header length. There'll be more later. */
+static int snapshot() {
+	int fd;
+	struct header hdr;
+
+	ioctl(lguest_fd, LGIOCTL_GETREGS, &hdr.state);
+	dump_group_regs(&hdr.state);
+
+	strcpy(hdr.version, "0.0.0");
+	hdr.size = getpagesize();
+
+	fd = open_memfile(O_RDWR);
+	pwrite(fd, &hdr, sizeof(hdr), 0);
+	
+	close(fd);
+
+	/* Fix Terminal on exit */
+	if (orig_term.c_lflag & (ISIG|ICANON|ECHO))
+		tcsetattr(STDIN_FILENO, TCSANOW, &orig_term);
+
+	printf("Snapshot taken, exiting...\n");
+	kill(0, SIGINT);
+
+	return 0;
+}
+
+static int restore(struct header *header) {
+	int fd;
+	fd = open_memfile(O_RDWR);
+	pread(fd, header, sizeof(struct header), 0);
+	return close(fd);
+}
+
+void send_signal_to_kernel(lgctrl_t current_signal) 
 {
-	int fd = open_or_die("/dev/zero", O_RDONLY);
+	unsigned long signal_type = 0;
+
+	switch (current_signal) {
+		case LGCTRL_SUSPEND:
+			signal_type = LHREQ_SUSPEND;
+			break;
+		case LGCTRL_RESUME:
+			signal_type = LHREQ_RESUME;
+			break;
+		case LGCTRL_SNAPSHOT:
+			signal_type = LHREQ_SNAPSHOT;
+			snapshot();
+			return;
+			break;
+		case LGCTRL_ROLLBACK:
+			signal_type = LHREQ_ROLLBACK;
+		default:
+			break;
+	}
+
+	if (signal_type == 0) {
+		return;
+	}
+
+	unsigned long buf[] = { signal_type };
+	write(lguest_fd, buf, sizeof(buf));
+}
+
+/* map_zeroed_pages() takes a number of pages. */
+static void *map_zeroed_pages(unsigned int num, bool clean)
+{
+	static int length = 0;
+	int newLength = 0;
+	int fd;
 	void *addr;
+	int header_pages = 2;
+	
+	newLength = getpagesize() * (num + header_pages + 1 /* 1 page for overflow guard */);
+
+	if(!length && clean) {
+		fd = open_memfile(O_CREAT | O_RDWR | O_TRUNC);
+		ftruncate(fd, newLength);
+	} else {
+		fd = open_memfile(O_RDWR);
+		if(newLength > length) {
+			ftruncate(fd, newLength);
+		}
+	}
+	length = newLength;
 
 	/*
 	 * We use a private mapping (ie. if we write to the page, it will be
 	 * copied). We allocate an extra two pages PROT_NONE to act as guard
 	 * pages against read/write attempts that exceed allocated space.
 	 */
-	addr = mmap(NULL, getpagesize() * (num+2),
+	addr = mmap(NULL, length,
 		    PROT_NONE, MAP_PRIVATE, fd, 0);
 
 	if (addr == MAP_FAILED)
-		err(1, "Mmapping %u pages of /dev/zero", num);
+		err(1, "Mmapping %u pages", num);
 
-	if (mprotect(addr + getpagesize(), getpagesize() * num,
+	/* map header information */
+	// open_memfile(fd);
+
+	if (mprotect(addr + (getpagesize() * header_pages), getpagesize() * num,
 		     PROT_READ|PROT_WRITE) == -1)
 		err(1, "mprotect rw %u pages failed", num);
 
@@ -332,7 +430,7 @@ static void *map_zeroed_pages(unsigned int num)
 	close(fd);
 
 	/* Return address after PROT_NONE page */
-	return addr + getpagesize();
+	return addr + (getpagesize() * header_pages);
 }
 
 /* Get some more pages for a device. */
@@ -569,13 +667,15 @@ static void concat(char *dst, char *args[])
  * the base of Guest "physical" memory, the top physical page to allow and the
  * entry point for the Guest.
  */
-static void tell_kernel(unsigned long start, char *snapshot_path, bool *clean)
+static void tell_kernel(unsigned long start, char *snapshot_path, bool *clean, struct lguest_state_group *state)
 {
 	unsigned long args[] = { LHREQ_INITIALIZE,
 				 (unsigned long)guest_base,
 				 guest_limit / getpagesize(), start, 
 				 (long)snapshot_path,
-				 (long)clean};
+				 (long)clean,
+				 (long)state, /* TODO: Place Holder for guest guest register state */
+				 (long)0, /* TODO: and lguest data */ };
 	verbose("Guest: %p - %p (%#lx)\n",
 		guest_base, guest_base + guest_limit, guest_limit);
 	lguest_fd = open_or_die("/dev/lguest", O_RDWR);
@@ -869,8 +969,15 @@ static void console_input(struct virtqueue *vq)
 		struct timeval now;
 		gettimeofday(&now, NULL);
 		/* Kill all Launcher processes with SIGINT, like normal ^C */
-		if (now.tv_sec <= abort->start.tv_sec+1)
+		if (now.tv_sec <= abort->start.tv_sec+1) {
+			// kill(0, SIGINT);
+			// TODO: This is how we can get all snapshot info from the kernel module, need to do this
+			// somewhere else
+			// ioctl(lguest_fd, LGIOCTL_GETREGS, &state_data);
+			// dump_group_regs(&state_data);
+			// snapshot(&state_data);
 			kill(0, SIGINT);
+		}
 		abort->count = 0;
 	}
 }
@@ -1166,6 +1273,7 @@ static void handle_output(unsigned long addr)
 	 */
 	if (addr >= guest_limit)
 		errx(1, "Bad NOTIFY %#lx", addr);
+	printf("NOTIFY %#lx %#lx\n", addr, guest_limit);
 
 	write(STDOUT_FILENO, from_guest_phys(addr),
 	      strnlen(from_guest_phys(addr), guest_limit - addr));
@@ -1850,6 +1958,7 @@ static void __attribute__((noreturn)) run_guest(void)
 		int readval;
 
 		/* We read from the /dev/lguest device to run the Guest. */
+		// printf("running the guest...\n");
 		readval = pread(lguest_fd, &notify_addr,
 				sizeof(notify_addr), cpu_id);
 
@@ -1889,6 +1998,7 @@ static struct option opts[] = {
 	{ "chroot", 1, NULL, 'c' },
 	{ "snapshot", 1, NULL, 's' },
 	{ "clean", 0, NULL, 'f'},
+	{ "memfile", 1, NULL, 'm'},
 	{ NULL },
 };
 static void usage(void)
@@ -1898,7 +2008,8 @@ static void usage(void)
 	     "|--block=<filename>|--initrd=<filename>]...\n"
 	     "<mem-in-mb> vmlinux [args...]\n"
 	     "[--snapshot snapshot_path]\n"
-	     "[--clean]"
+	     "[--clean]\n"
+	     "[--memfile]"
 	     );
 }
 
@@ -1919,6 +2030,7 @@ int main(int argc, char *argv[])
 
 	/* Flag to tell kernel if clean load or not */
 	bool clean = false;
+	struct header initial_header;
 
 	/* Password structure for initgroups/setres[gu]id */
 	struct passwd *user_details = NULL;
@@ -1928,6 +2040,9 @@ int main(int argc, char *argv[])
 
 	/* Save the args: we "reboot" by execing ourselves again. */
 	main_args = argv;
+
+	/* Default some values in the helper struct */
+	user_arguments.ismemfile = false;
 
 	/*
 	 * First we initialize the device list.  We keep a pointer to the last
@@ -1939,6 +2054,24 @@ int main(int argc, char *argv[])
 
 	/* We're CPU 0.  In fact, that's the only CPU possible right now. */
 	cpu_id = 0;
+
+	/* Search for the --memfile flag */
+	for(i = 1; i < argc; i++) {
+		if(argv[i][0] == '-' && argv[i][2] == 'm') {
+			strncpy(user_arguments.memfile, argv[i+1], 256);
+			user_arguments.ismemfile = true;
+		}
+		if (argv[i][0] == '-' && argv[i][2] == 'c' && argv[i][3] == 'l') {
+			clean = true;
+		}
+	}
+
+	if (!clean) {
+		restore(&initial_header);
+		dump_group_regs(&initial_header.state);
+		printf("clean is not true...\n");
+		printf("%s\n", initial_header.version);
+	}
 
 	/*
 	 * We need to know how much memory so we can set up the device
@@ -1956,7 +2089,7 @@ int main(int argc, char *argv[])
 			 * tries to access it.
 			 */
 			guest_base = map_zeroed_pages(mem / getpagesize()
-						      + DEVICE_PAGES);
+						      + DEVICE_PAGES, clean);
 			guest_limit = mem;
 			guest_max = mem + DEVICE_PAGES*getpagesize();
 			devices.descpage = get_pages(1);
@@ -1996,9 +2129,13 @@ int main(int argc, char *argv[])
 		case 'f':
 			clean = true;
 			break;
+		case 'm':
+			/* ignore this case in this loop */
+			break;
 		default:
 			warnx("Unknown argument %s", argv[optind]);
 			usage();
+			break;
 		}
 	}
 	/*
@@ -2062,7 +2199,7 @@ int main(int argc, char *argv[])
 	boot->hdr.loadflags |= KEEP_SEGMENTS;
 
 	/* We tell the kernel to initialize the Guest. */
-	tell_kernel(start, snapshot_path, &clean);
+	tell_kernel(start, snapshot_path, &clean, clean ? NULL : &initial_header.state);
 
 	/* Ensure that we terminate if a device-servicing child dies. */
 	signal(SIGCHLD, kill_launcher);

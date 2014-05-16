@@ -65,12 +65,15 @@ hcall(unsigned long call,
 
 /* Can't use our min() macro here: needs to be a constant */
 #define LGUEST_IRQS (NR_IRQS < 32 ? NR_IRQS: 32)
-
 #define LHCALL_RING_SIZE 64
+
+#ifndef LG_HCALL_ARGS
+#define LG_HCALL_ARGS
 struct hcall_args {
 	/* These map directly onto eax/ebx/ecx/edx/esi in struct lguest_regs */
 	unsigned long arg0, arg1, arg2, arg3, arg4;
 };
+#endif
 
 #endif /* !__ASSEMBLY__ */
 #endif /* _ASM_X86_LGUEST_HCALL_H */

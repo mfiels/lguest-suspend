@@ -204,7 +204,6 @@ static ssize_t read(struct file *file, char __user *user, size_t size,loff_t*o)
 	struct lg_cpu *cpu;
 	unsigned int cpu_id = *o;
 
-
 	/* You must write LHREQ_INITIALIZE first! */
 	if (!lg)
 		return -EINVAL;
@@ -246,6 +245,53 @@ static ssize_t read(struct file *file, char __user *user, size_t size,loff_t*o)
 
 	/* Run the Guest until something interesting happens. */
 	return run_guest(cpu, (unsigned long __user *)user);
+}
+
+static void lg_convert_state(struct lguest *lg, struct lguest_state_group *state) {
+	// int i;
+	// struct desc_struct *gdts;
+	// struct desc_struct *idts;
+	struct lguest_regs *regs = lg->cpus[0].regs;
+	struct lguest_data *data = lg->lguest_data;
+	struct lg_cpu *cpu = &lg->cpus[0];
+
+	state->eax = regs->eax;
+	state->ebx = regs->ebx;
+	state->ecx = regs->ecx;
+	state->edx = regs->edx;
+	state->esi = regs->esi;
+	state->edi = regs->edi;
+	state->ebp = regs->ebp;
+	state->gs = regs->gs;
+	state->fs = regs->fs;
+	state->ds = regs->ds;
+	state->es = regs->es;
+	state->trapnum = regs->trapnum;
+	state->errcode = regs->errcode;
+	state->eip = regs->eip;
+	state->cs = regs->cs;
+	state->eflags = regs->eflags;
+	state->esp = regs->esp;
+	state->ss = regs->ss;
+
+	state->data_address = (unsigned long) data;
+
+	memcpy(state->gdt, cpu->arch.gdt, 32 * sizeof(struct desc_struct));
+	memcpy(state->idt, cpu->arch.idt, 256 * sizeof(struct desc_struct));
+}
+
+struct lguest_state_group lg_state_data;
+static long lg_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
+	struct lguest *lg = filp->private_data;
+
+	switch (cmd) {
+		case LGIOCTL_GETREGS:
+			lg_convert_state(lg, &lg_state_data);
+			copy_to_user((char *) arg, (char *) (&lg_state_data), sizeof(struct lguest_state_group));
+			return (long) sizeof(struct lguest_state_group);
+	}
+	
+	return -ENOTTY;
 }
 
 /*L:025
@@ -309,6 +355,49 @@ static int lg_cpu_start(struct lg_cpu *cpu, unsigned id, unsigned long start_ip)
 	return 0;
 }
 
+static void restore_from_state(struct lguest* lg, struct lguest_state_group *state) {
+	struct lguest_regs *regs = lg->cpus[0].regs;
+	struct lg_cpu *cpu = &lg->cpus[0];
+	// struct lguest_data *data = lg->lguest_data;
+	// struct hcall_args init_hcall;
+
+	regs->eax = state->eax;
+	regs->ebx = state->ebx;
+	regs->ecx = state->ecx;
+	regs->edx = state->edx;
+	regs->esi = state->esi;
+	regs->edi = state->edi;
+	regs->ebp = state->ebp;
+	regs->gs = state->gs;
+	regs->fs = state->fs;
+	regs->ds = state->ds;
+	regs->es = state->es;
+	regs->trapnum = state->trapnum;
+	regs->errcode = state->errcode;
+	regs->eip = state->eip;
+	regs->cs = state->cs;
+	regs->eflags = state->eflags;
+	regs->esp = state->esp;
+	regs->ss = state->ss;
+
+	lg->lguest_data = (struct lguest_data *) state->data_address;
+
+	// regs->eflags |= 0x202;
+	// regs->cs |= GUEST_PL;
+	// regs->ss |= GUEST_PL;
+	// regs->ds |= GUEST_PL;
+	// regs->gs |= GUEST_PL;
+	// regs->fs |= GUEST_PL;
+	// regs->es |= GUEST_PL;
+
+	memcpy(cpu->arch.gdt, state->gdt, 32 * sizeof(struct desc_struct));
+	memcpy(cpu->arch.idt, state->idt, 256 * sizeof(struct desc_struct));
+
+	lg->dead = 0;
+}
+
+/* Dummy Holder for lg_data */
+struct lguest_state_group restore_state;
 /*L:020
  * The initialization write supplies 3 pointer sized (32 or 64 bit) values (in
  * addition to the LHREQ_INITIALIZE value).  These are:
@@ -326,7 +415,7 @@ static int initialize(struct file *file, const unsigned long __user *input)
 	/* "struct lguest" contains all we (the Host) know about a Guest. */
 	struct lguest *lg;
 	int err;
-	unsigned long args[5];
+	unsigned long args[7];
 	char snapshot_path[256] = {0};
 	bool clean;
 
@@ -373,6 +462,16 @@ static int initialize(struct file *file, const unsigned long __user *input)
 	err = lg_cpu_start(&lg->cpus[0], 0, args[2]);
 	if (err)
 		goto free_eventfds;
+
+	if (args[5] != 0) {
+		copy_from_user(&restore_state, (struct lguest_state_group*) args[5], sizeof(struct lguest_state_group));		
+		printk("lguest_state_group received, setting up registers...\n");
+		printk("eax should be: %lu\n", restore_state.eax);
+		restore_from_state(lg, &restore_state);
+		printk("finished restoring\n");
+	} else {
+		printk("lguest_state_group not received\n");
+	}
 
 	/*
 	 * Initialize the Guest's shadow page tables.  This allocates
@@ -573,6 +672,7 @@ static const struct file_operations lguest_fops = {
 	.write	 = write,
 	.read	 = read,
 	.llseek  = default_llseek,
+	.unlocked_ioctl = lg_ioctl,
 };
 /*:*/
 
