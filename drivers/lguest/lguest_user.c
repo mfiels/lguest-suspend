@@ -393,6 +393,8 @@ static void restore_from_state(struct lguest* lg, struct lguest_state_group *sta
 	memcpy(cpu->arch.gdt, state->gdt, 32 * sizeof(struct desc_struct));
 	memcpy(cpu->arch.idt, state->idt, 256 * sizeof(struct desc_struct));
 
+	cpu->linear_pages = false;
+
 	lg->dead = 0;
 }
 
