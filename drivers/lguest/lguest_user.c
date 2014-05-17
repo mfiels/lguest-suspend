@@ -483,6 +483,10 @@ static int initialize(struct file *file, const unsigned long __user *input)
 	if (err)
 		goto free_regs;
 
+	if (args[5] != 0) {
+		cpu->linear_pages = false;
+	}
+
 	/* We keep our "struct lguest" in the file's private_data. */
 	file->private_data = lg;
 
