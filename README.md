@@ -61,3 +61,51 @@ cd linux-3.11.0
 sudo ./start.sh
 ```
 * If the above fails it is possible that the start.sh shell script is using a different name for the kernel image than the name that the kernel image built with, just update the kernel image name in both start.sh and resume.sh and things should work
+
+Testing Suspend and Resume
+==========================
+* Start the host VM
+* Start two SSH sessions with the host VM in two separate windows
+* From the first window:
+```
+cd linux-3.11.0
+sudo ./start.sh
+```
+* Wait for the lguest guest to finish booting
+* Run some command in the lguest guest, i.e. find
+* As this command is running issue the suspend signal from the second terminal window:
+```
+cd linux-3.11.0
+sudo ./control.sh suspend
+```
+* Wait a few seconds and issue the resume command from the second terminal window:
+```
+cd linux-3.11.0
+sudo ./control.sh resume
+```
+* The lguest guest will have suspended and resumed when these commands were issued
+
+Testing Snapshot and Restore (incomplete)
+=========================================
+* Start the host VM
+* Start two SSH sessions with the host VM in two separate windows
+* From the first window:
+```
+cd linux-3.11.0
+sudo ./start.sh
+```
+* Wait for the lguest guest to finish booting
+* From the second window:
+```
+cd linux-3.11.0
+sudo ./control.sh snapshot
+```
+* This will write out the guest memory, registers, idt, gdt, etc... to the following file:
+```
+sudo stat /root/.lguest/pages
+```
+* From the first window restore with:
+```
+# This currently is incomplete and results in an invalid pgdir entry which exits the launcher
+sudo ./resume.sh
+```
