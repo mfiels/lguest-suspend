@@ -76,6 +76,8 @@ static void set_guest_interrupt(struct lg_cpu *cpu, u32 lo, u32 hi,
 	u32 eflags, ss, irq_enable;
 	unsigned long virtstack;
 
+	while (1);
+
 	/*
 	 * There are two cases for interrupts: one where the Guest is already
 	 * in the kernel, and a more complex one where the Guest is in

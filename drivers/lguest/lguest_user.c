@@ -278,6 +278,9 @@ static void lg_convert_state(struct lguest *lg, struct lguest_state_group *state
 
 	memcpy(state->gdt, cpu->arch.gdt, 32 * sizeof(struct desc_struct));
 	memcpy(state->idt, cpu->arch.idt, 256 * sizeof(struct desc_struct));
+
+	memcpy(state->pgdirs, lg->pgdirs, 4 * sizeof(struct pgdir));
+	state->cpu_pgd = cpu->cpu_pgd;
 }
 
 struct lguest_state_group lg_state_data;
@@ -393,6 +396,9 @@ static void restore_from_state(struct lguest* lg, struct lguest_state_group *sta
 	memcpy(cpu->arch.gdt, state->gdt, 32 * sizeof(struct desc_struct));
 	memcpy(cpu->arch.idt, state->idt, 256 * sizeof(struct desc_struct));
 
+	memcpy(lg->pgdirs, state->pgdirs, 4 * sizeof(struct pgdir));
+	cpu->cpu_pgd = state->cpu_pgd;
+
 	cpu->linear_pages = false;
 
 	lg->dead = 0;
@@ -479,7 +485,7 @@ static int initialize(struct file *file, const unsigned long __user *input)
 	 * Initialize the Guest's shadow page tables.  This allocates
 	 * memory, so can fail.
 	 */
-	err = init_guest_pagetable(lg);
+	err = init_guest_pagetable(lg, args[5] != 0);
 	if (err)
 		goto free_regs;
 

@@ -743,7 +743,8 @@ static unsigned int find_pgdir(struct lguest *lg, unsigned long pgtable)
  */
 static unsigned int new_pgdir(struct lg_cpu *cpu,
 			      unsigned long gpgdir,
-			      int *blank_pgdir)
+			      int *blank_pgdir,
+			      bool restore)
 {
 	unsigned int next;
 
@@ -752,6 +753,13 @@ static unsigned int new_pgdir(struct lg_cpu *cpu,
 	 * Recently Used might be better, but this is easy.
 	 */
 	next = prandom_u32() % ARRAY_SIZE(cpu->lg->pgdirs);
+
+	if (restore) {
+		cpu->lg->pgdirs[next].pgdir = (pgd_t *)get_zeroed_page(GFP_KERNEL);
+		*blank_pgdir = 1;
+		return next;
+	}
+
 	/* If it's never been allocated at all before, try now. */
 	if (!cpu->lg->pgdirs[next].pgdir) {
 		cpu->lg->pgdirs[next].pgdir =
@@ -884,7 +892,7 @@ void guest_new_pagetable(struct lg_cpu *cpu, unsigned long pgtable)
 	 * repin gets set to 1.
 	 */
 	if (newpgdir == ARRAY_SIZE(cpu->lg->pgdirs))
-		newpgdir = new_pgdir(cpu, pgtable, &repin);
+		newpgdir = new_pgdir(cpu, pgtable, &repin, false);
 	/* Change the current pgd index to the new one. */
 	cpu->cpu_pgd = newpgdir;
 	/*
@@ -1066,13 +1074,13 @@ void guest_set_pmd(struct lguest *lg, unsigned long pmdp, u32 idx)
  * We do need the Switcher to be mapped at all times, so we allocate that
  * part of the Guest page table here.
  */
-int init_guest_pagetable(struct lguest *lg)
+int init_guest_pagetable(struct lguest *lg, bool restore)
 {
 	struct lg_cpu *cpu = &lg->cpus[0];
 	int allocated = 0;
 
 	/* lg (and lg->cpus[]) starts zeroed: this allocates a new pgdir */
-	cpu->cpu_pgd = new_pgdir(cpu, 0, &allocated);
+	cpu->cpu_pgd = new_pgdir(cpu, 0, &allocated, restore);
 	if (!allocated)
 		return -ENOMEM;
 

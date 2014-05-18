@@ -96,6 +96,9 @@ struct lguest_state_group {
 	// GDT IDT
 	unsigned int gdt[32][2];
 	unsigned int idt[256][2];
+
+	char pgdirs[16][4];
+	int cpu_pgd;
 };
 
 #define LGIOCTL_GETREGS	1
