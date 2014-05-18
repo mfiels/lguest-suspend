@@ -14,6 +14,7 @@ sudo -u ${SUDO_USER} cp linux.config .config
 sudo -u ${SUDO_USER} make oldconfig
 sudo -u ${SUDO_USER} fakeroot make-kpkg --initrd --append-to-version=-lguest kernel_image kernel_headers
 
+cd /home/${SUDO_USER}
 dpkg -i linux-image*
 dpkg -i linux-headers*
 update-grub
