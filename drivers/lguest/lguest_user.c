@@ -484,7 +484,7 @@ static int initialize(struct file *file, const unsigned long __user *input)
 		goto free_regs;
 
 	if (args[5] != 0) {
-		cpu->linear_pages = false;
+		lg->cpus[0].linear_pages = false;
 	}
 
 	/* We keep our "struct lguest" in the file's private_data. */
