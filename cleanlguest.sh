@@ -1,11 +1,11 @@
 #! /bin/bash
 
 # make kernel module
-echo 'Making lg.ko...'
-cd /home/mark/linux-3.11.0/drivers/lguest
-make clean
+echo 'Cleaning lg.ko...'
+cd /home/${SUDO_USER}/linux-3.11.0/drivers/lguest
+rm *.o
 
 # make launcher
-echo 'Making lguest launcher...'
-cd /home/mark/linux-3.11.0/tools/lguest
+echo 'Cleaning lguest launcher...'
+cd /home/${SUDO_USER}/linux-3.11.0/tools/lguest
 make clean
