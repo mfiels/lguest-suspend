@@ -171,29 +171,12 @@ ENTRY(switch_to_guest)
 	// Writable under our %esp (stack) --
 	// We can simply pop off all Guest regs.
 	popl	%eax
-	// cmp 	$10, %eax
-	// jne 	lg_omgomg
 	popl	%ebx
-	// cmp 	$0, %ebx
-	// jne 	lg_omgomg
 	popl	%ecx
-	// cmp 	$0, %ecx
-	// jne 	lg_omgomg
 	popl	%edx
-	// cmp 	$0, %edx
-	// jne 	lg_omgomg
 	popl	%esi
-	// cmp 	$0, %esi
-	// jne 	lg_omgomg
 	popl	%edi
-	// cmp 	$0, %edi
-	// jne 	lg_omgomg
 	popl	%ebp
-	// cmp 	$0xc1881F64, %ebp
-	// jne 	lg_omgomg
-	// popl 	%eax
-	// cmp 	$0xE0, %eax
-	// jne 	lg_omgomg
 	popl	%gs
 	popl	%fs
 	popl	%ds
@@ -211,9 +194,6 @@ ENTRY(switch_to_guest)
 	// And the stack where the Guest had last left it.
 	// Interrupts are turned back on: we are Guest.
 	iret
-
-lg_omgomg:
-	jmp lg_omgomg
 
 // We tread two paths to switch back to the Host
 // Yet both must save Guest state and restore Host

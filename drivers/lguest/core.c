@@ -83,15 +83,15 @@ int file_write(struct file* file, unsigned long long offset, unsigned char* data
     return ret;
 }
 
-static void dump_cpu_regs(struct lg_cpu *cpu) {
-	struct lguest_regs *regs = cpu->regs;
+// static void dump_cpu_regs(struct lg_cpu *cpu) {
+// 	struct lguest_regs *regs = cpu->regs;
 
-	printk("eax: %ld, ebx: %ld, ecx: %ld, edx: %ld\n", regs->eax, regs->ebx, regs->ecx, regs->edx);
-	printk("esi: %ld, edi: %ld, ebp: %ld\n", regs->esi, regs->edi, regs->ebp);
-	printk("gs: %ld, fs: %ld, ds: %ld, es: %ld\n", regs->gs, regs->fs, regs->ds, regs->es);
-	printk("trapnum: %ld, errcode: %ld\n", regs->trapnum, regs->errcode);
-	printk("eip: %ld, cs: %ld, eflags: %ld, esp: %ld, ss: %ld\n", regs->eip, regs->cs, regs->eflags, regs->esp, regs->ss);
-}
+// 	printk("eax: %ld, ebx: %ld, ecx: %ld, edx: %ld\n", regs->eax, regs->ebx, regs->ecx, regs->edx);
+// 	printk("esi: %ld, edi: %ld, ebp: %ld\n", regs->esi, regs->edi, regs->ebp);
+// 	printk("gs: %ld, fs: %ld, ds: %ld, es: %ld\n", regs->gs, regs->fs, regs->ds, regs->es);
+// 	printk("trapnum: %ld, errcode: %ld\n", regs->trapnum, regs->errcode);
+// 	printk("eip: %ld, cs: %ld, eflags: %ld, esp: %ld, ss: %ld\n", regs->eip, regs->cs, regs->eflags, regs->esp, regs->ss);
+// }
 
 static void read_cpu_regs(struct lg_cpu *cpu) {
 	struct file *regs;
@@ -525,7 +525,6 @@ static int __init init(void)
 {
 	int err;
 
-	printk("Do I work?\n");
 	/* Lguest can't run under Xen, VMI or itself.  It does Tricky Stuff. */
 	if (get_kernel_rpl() != 0) {
 		printk("lguest is afraid of being a guest\n");

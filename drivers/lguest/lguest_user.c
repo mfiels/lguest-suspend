@@ -438,10 +438,8 @@ static int initialize(struct file *file, const unsigned long __user *input)
 	}
 
 	copy_from_user(snapshot_path, (char*)args[3], sizeof(snapshot_path));
-	printk("snapshot_path: %s\n", snapshot_path);
 
 	copy_from_user(&clean, (bool*)args[4], sizeof(bool));
-	printk("clean load? %s\n", clean ? "TRUE" : "FALSE");
 
 	lg = kzalloc(sizeof(*lg), GFP_KERNEL);
 	if (!lg) {
@@ -468,7 +466,6 @@ static int initialize(struct file *file, const unsigned long __user *input)
 	if (args[5] != 0) {
 		copy_from_user(&restore_state, (struct lguest_state_group*) args[5], sizeof(struct lguest_state_group));		
 		printk("lguest_state_group received, setting up registers...\n");
-		printk("eax should be: %lu\n", restore_state.eax);
 		restore_from_state(lg, &restore_state);
 		printk("finished restoring\n");
 	} else {
