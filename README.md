@@ -11,7 +11,7 @@ Instructions
 ```
 wget https://raw.githubusercontent.com/mfiels/lguest-suspend/master/setup.sh ~/setup.sh
 ```
-* Execute the setup shell script with sudo. This will take some time (1-2hrs) because it builds a custom version of the kernel with lguest support built in. To speed things up make sure your VM can use multiple cores and change the concurrency level in setup.sh to reflect your core count.
+* Execute the setup shell script with sudo. This will take some time (1-2hrs) because it builds a custom version of the kernel with lguest support built in. To speed things up make sure your VM can use multiple cores and change the concurrency level in setup.sh to reflect your core count. Alternatively you can download the [header .deb package](https://drive.google.com/file/d/0Bxb_HgWHzr7gYTBPbWh0V0h2NW8/edit?usp=sharing) and the [image .deb package](https://drive.google.com/file/d/0Bxb_HgWHzr7gUXZ2bWJ1anBVOTQ/edit?usp=sharing) and install them yourself. Downloading these packages instead of building the kernel may cause some problems when trying to build the lguest kernel module but I am not sure.
 ```
 chmod +x setup.sh && sudo ./setup.sh
 ```
