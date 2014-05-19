@@ -109,3 +109,7 @@ sudo stat /root/.lguest/pages
 # This currently is incomplete and results in an invalid pgdir entry which exits the launcher
 sudo ./resume.sh
 ```
+
+Video Demonstration
+===================
+* All of the above is pretty hefty, if you're only interested in seeing a short demo [check out this video](https://www.youtube.com/watch?v=5E9QW9w2qOg).
