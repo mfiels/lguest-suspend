@@ -25,7 +25,7 @@ sudo reboot now
 # Should return something like "linux...lguest"
 uname -r
 ```
-* Next setup a virtual disk image for the lguest guest to use, this can be done with qemu. I do this on my host machine for simplicity. Alternatively you can download a pre configured vdi (username: guest, password: password) with the appropriate lguest kernel [https://drive.google.com/file/d/0Bxb_HgWHzr7gTFE3UWJTSFI5cnM/edit?usp=sharing](here), this is a 5 GB file so it *may* be faster to just follow the steps below.
+* Next setup a virtual disk image for the lguest guest to use, this can be done with qemu. I do this on my host machine for simplicity. Alternatively you can download a pre configured vdi (username: guest, password: password) with the appropriate lguest kernel [here](https://drive.google.com/file/d/0Bxb_HgWHzr7gTFE3UWJTSFI5cnM/edit?usp=sharing), this is a 5 GB file so it *may* be faster to just follow the steps below.
 ```
 cd
 sudo apt-get install qemu
